@@ -1,0 +1,3 @@
+#pragma once
+#define BOPOMOFO_LEXICON_FILE "@BOPOMOFO_LEXICON_FILE@"
+#define BOPOMOFO_LEXICON_CHECKSUM "@CMAKE_INSTALL_PREFIX@/share/fcitx5/bopomofo-dev/lexicon.sha256"

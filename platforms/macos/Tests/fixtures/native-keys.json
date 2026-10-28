@@ -1,0 +1,70 @@
+[
+  {
+    "name": "shift-tap-and-dual-shift",
+    "steps": [
+      {"kind":"flags","code":56,"flags":["shift"],"expected":{"key":"shift","shift":true}},
+      {"kind":"flags","code":60,"flags":["shift"]},
+      {"kind":"flags","code":56,"flags":["shift"]},
+      {"kind":"flags","code":60,"flags":[],"expected":{"key":"shift","release":true}}
+    ]
+  },
+  {
+    "name": "shift-chord-physical-dachen",
+    "steps": [
+      {"kind":"flags","code":56,"flags":["shift"],"expected":{"key":"shift","shift":true}},
+      {"kind":"down","code":18,"characters":"!","flags":["shift"],"expected":{"key":"1","shift":true}},
+      {"kind":"up","code":18,"characters":"!","flags":["shift"],"expected":{"key":"1","shift":true,"release":true}},
+      {"kind":"flags","code":56,"flags":[],"expected":{"key":"shift","release":true}}
+    ]
+  },
+  {
+    "name": "shift-modifier-only-chords",
+    "steps": [
+      {"kind":"flags","code":56,"flags":["shift"],"expected":{"key":"shift","shift":true}},
+      {"kind":"flags","code":59,"flags":["shift","ctrl"],"expected":{"key":"control","shift":true,"ctrl":true}},
+      {"kind":"flags","code":59,"flags":["shift"],"expected":{"key":"control","shift":true,"release":true}},
+      {"kind":"flags","code":56,"flags":[],"expected":{"key":"shift","release":true}},
+      {"kind":"flags","code":56,"flags":["shift"],"expected":{"key":"shift","shift":true}},
+      {"kind":"flags","code":58,"flags":["shift","alt"],"expected":{"key":"alt","shift":true,"alt":true}},
+      {"kind":"flags","code":58,"flags":["shift"],"expected":{"key":"alt","shift":true,"release":true}},
+      {"kind":"flags","code":55,"flags":["shift","meta"],"expected":{"key":"meta","shift":true,"meta":true}},
+      {"kind":"flags","code":55,"flags":["shift"],"expected":{"key":"meta","shift":true,"release":true}},
+      {"kind":"flags","code":63,"flags":["shift","fn"],"expected":{"key":"fn","shift":true}},
+      {"kind":"flags","code":63,"flags":["shift"],"expected":{"key":"fn","shift":true,"release":true}},
+      {"kind":"flags","code":56,"flags":[],"expected":{"key":"shift","release":true}}
+    ]
+  },
+  {
+    "name": "caps-latch-transitions-are-presses",
+    "steps": [
+      {"kind":"flags","code":57,"flags":["caps_lock"],"expected":{"key":"caps_lock"}},
+      {"kind":"flags","code":57,"flags":["caps_lock"]},
+      {"kind":"flags","code":57,"flags":[],"expected":{"key":"caps_lock"}}
+    ]
+  },
+  {
+    "name": "repeat-release-and-shortcut-flags",
+    "steps": [
+      {"kind":"down","code":40,"characters":"k","flags":[],"isRepeat":true,"expected":{"key":"k","repeat":true}},
+      {"kind":"up","code":40,"characters":"k","flags":[],"expected":{"key":"k","release":true}},
+      {"kind":"flags","code":55,"flags":["meta"],"expected":{"key":"meta","meta":true}},
+      {"kind":"down","code":0,"characters":"a","flags":["meta"],"expected":{"key":"a","meta":true}},
+      {"kind":"flags","code":55,"flags":[],"expected":{"key":"meta","release":true}},
+      {"kind":"down","code":14,"characters":"e","flags":["ctrl","alt","meta","shift"],"expected":{"key":"e","ctrl":true,"alt":true,"meta":true,"shift":true}}
+    ]
+  },
+  {
+    "name": "navigation-unknown-and-empty",
+    "steps": [
+      {"kind":"down","code":116,"flags":[],"expected":{"key":"page_up"}},
+      {"kind":"down","code":121,"flags":[],"expected":{"key":"page_down"}},
+      {"kind":"down","code":76,"flags":[],"expected":{"key":"enter"}},
+      {"kind":"down","code":117,"flags":[],"expected":{"key":"delete"}},
+      {"kind":"flags","code":255,"flags":[]},
+      {"kind":"down","code":255,"characters":"","flags":[],"expected":{"key":"native_255"}},
+      {"kind":"up","code":255,"flags":[],"expected":{"key":"native_255","release":true}},
+      {"kind":"down","code":254,"characters":"§","flags":[],"expected":{"key":"native_254"}},
+      {"kind":"up","code":254,"flags":[],"expected":{"key":"native_254","release":true}}
+    ]
+  }
+]

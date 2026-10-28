@@ -1,0 +1,11 @@
+[Addon]
+Name=Bopomofo Development
+Type=SharedLibrary
+Library=libbopomofo-dev
+Category=InputMethod
+Version=@PROJECT_VERSION@
+OnDemand=True
+Configurable=False
+
+[Dependencies]
+0=core:5.1.7

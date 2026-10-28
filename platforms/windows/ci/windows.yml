@@ -1,0 +1,46 @@
+# Preparation only. A CI owner must review runner labels and copy this file to
+# .github/workflows/windows.yml. It never registers or enables the input method.
+name: Windows TSF build and non-registration tests
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'platforms/windows/**'
+      - 'crates/ime-core/**'
+      - 'fixtures/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+permissions:
+  contents: read
+jobs:
+  native-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+          - runner: windows-2025
+            target: i686-pc-windows-msvc
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: rustfmt, clippy
+          targets: ${{ matrix.target }}
+      - name: Record build environment
+        shell: pwsh
+        run: |
+          rustc -Vv
+          cargo -V
+          [Environment]::OSVersion.VersionString
+          [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
+      - name: Native build and tests without installation
+        shell: pwsh
+        run: ./platforms/windows/scripts/Build-Test.ps1 -Target '${{ matrix.target }}'
+      # No upload, registration, activation, registry change, or desktop smoke
+      # test is authorized by this workflow. Record those results separately.

@@ -6,15 +6,17 @@
 
 「從零」指自行實作組字狀態、Zhuyin parser、詞庫索引、斷詞與候選排序；不使用 `chewing`、`librime` 或其他現成輸入引擎。可以使用系統 API、FFI binding、測試工具，以及授權允許使用與散布的詞庫資料。
 
-本次只建立文件，不建立程式碼、不安裝輸入法，也不修改系統設定。以下實作項目均尚未完成。
+目前依 Goal 指示執行本計畫。可在本機完成的程式碼、build 與 contract checks 均在此追蹤；不安裝、註冊或啟用輸入法，也不修改系統設定。未通過的 native、正式資料與效能 gates 保持未完成。
 
 ## Context
 
 - Repository：`/Users/narumi/src/bopomofo`。
-- 現有內容為根目錄文件與 `docs/architecture.md`；根目錄 `AGENTS.md` 定義 repository guidance，尚無 Cargo workspace、程式碼或測試。
+- 已建立 Cargo workspace、Rust core／FFI／CLI、三平台 adapter 原始碼與自製 fixtures；根目錄 `AGENTS.md` 定義 repository guidance。
+- Rust 1.92.0 已固定，`rustfmt`／Clippy 可正常執行。實際檢查與限制將保留於 `docs/native-validation.md`。
 - `LICENSE` 為 GNU AGPL v3 文件；實作前確認各套件的 license metadata，不自行更換專案授權。
-- 目前環境為 macOS，已確認有 Rust、Cargo、Swift、Clang；尚未驗證 InputMethodKit build 或 native IME 行為。
-- 尚未確認 Windows／Linux native runner、最低 OS 版本、詞庫來源與詞頻資料。
+- 目前環境為 macOS arm64，已通過 InputMethodKit 開發 bundle build 與獨立 Swift／C ABI tests；尚未安裝或驗證 native IME 行為。
+- OrbStack Docker 提供 Linux arm64 headless build／contract tests。Windows 僅有 Rust cross-check，native SDK／runner 與各平台 desktop matrix 仍未驗證。
+- 正式詞庫與詞頻仍受資料權利及代表性限制；目前只使用自製 fixture，不將其視為產品詞庫。
 
 ## Scope
 
@@ -84,7 +86,9 @@ flowchart TB
 
 ```text
 bopomofo/
+├── .github/workflows/checks.yml # CI build／contract checks
 ├── Cargo.toml                  # Rust workspace
+├── Cargo.lock                  # 固定 dependency versions
 ├── rust-toolchain.toml         # 固定 Rust toolchain
 ├── crates/
 │   ├── ime-core/               # 組字狀態、parser、詞庫、斷詞與排序
@@ -102,15 +106,20 @@ bopomofo/
 │   ├── architecture.md         # 架構與責任邊界
 │   ├── input-spec.md           # 按鍵行為與預期輸出
 │   ├── platform-support.md     # SDK、OS／架構與 build 前提
-│   └── native-validation.md    # native 驗證結果與發布限制
+│   ├── native-validation.md    # build／native 結果與發布限制
+│   ├── macos.md                # InputMethodKit build／管理／smoke tests
+│   ├── windows.md              # TSF build／註冊／限制
+│   ├── linux.md                # Fcitx5 build／管理／protocol gap
+│   └── benchmarks/fixture-64.json # 人工 stress-case report
 ├── AGENTS.md                   # Repository guidance
+├── .gitattributes              # 固定文字檔 LF，維持 checksum
 ├── .gitignore
 ├── README.md
 ├── LICENSE
 └── PLAN.md                     # 實作期間保留
 ```
 
-此為目標結構，目前只有根目錄檔案與 `docs/architecture.md`。先建立 core 與 replay 工具；其他 crate／目錄在對應階段才建立，不預先建立空的抽象層。
+Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層。平台 build 輸出不納入 Git。
 
 - `ime-core` 統一處理輸入與選字規則，不依賴平台 API。
 - `platforms` 只負責事件轉換、生命週期、顯示與文字提交。
@@ -122,69 +131,87 @@ bopomofo/
 
 ### P0 — 固定輸入規格與外部前提
 
-- [ ] 建立 `docs/input-spec.md`，定義各 composition state 的按鍵行為；驗收：每條規則都有可重播的輸入與預期 preedit／commit 範例。
+- [x] 建立 `docs/input-spec.md`，定義各 composition state 的按鍵行為；證據：規則表、Mermaid state diagram、八份 JSONL fixture 與 `crates/ime-core/tests/engine.rs`。
+  - `cargo test -p ime-cli --test repository_fixtures` 通過，逐份比對手寫預期值與重播穩定性。
   - 明定 Space 在第一聲結束、選字與 commit 的差異，以及 Enter、Escape、Backspace、Shift、Caps Lock 的行為。
   - 候選選取模式必須明確進入，避免數字選字鍵與 Dachen 聲調鍵衝突。
   - 明定空 composition 的按鍵透傳、快捷鍵透傳、focus loss、失活及不完整音節的處理；不得繞過 host 對敏感欄位或停用輸入法的限制。
   - 限制單次 composition 為最多 64 個音節；超限時保留既有內容、拒絕新增音節並回報狀態，不靜默丟棄既有輸入或自動 commit。
-- [ ] 建立 `data/SOURCES.md` 並調查可用字音、詞組與詞頻資料；驗收：選定資料有來源 URL、版本、checksum、授權、署名及可進行的轉換／散布範圍。
+- [x] 建立 `data/SOURCES.md` 並調查字音、詞組與詞頻來源；證據：固定版本、URL、checksum、license、attribution 與轉換限制已記錄。
+  - 本階段選用 `fixture-local-v1` 自製資料；正式 phrase／frequency 來源尚未解決，並未匯入候選資料。
   - 自製最小測試詞庫，讓開發不依賴尚未核准的外部資料。
   - 授權不明的資料不得匯入或散布；正式詞庫未解決前，功能原型可繼續，產品品質與散布驗收保持 blocked。
-- [ ] 建立 `docs/platform-support.md`，查閱 TSF、InputMethodKit、Fcitx5 官方 API 並列出所需 SDK、架構、build command 與驗證方式；驗收：每個 target 標明 available 或 blocked 及缺少的條件，不宣稱未驗證版本已受支援。
+- [x] 建立 `docs/platform-support.md`，查閱 TSF、InputMethodKit、Fcitx5 官方 API；證據：官方連結、local SDK typecheck、SDK／架構與 native 限制均已記錄。
 
 ### P1 — Workspace、事件契約與 macOS integration spike
 
-- [ ] 建立 Cargo workspace、固定已驗證的 Rust toolchain、core skeleton 與非互動 replay CLI；驗收：CLI 讀取 fixture 後輸出穩定結果，format、Clippy 與 unit tests 通過。
-- [ ] 定義 `Engine`、事件、output snapshot、reset 與只讀 key probe；驗收：測試證明 probe 不改變狀態，不同 input context 互不影響。
-- [ ] 建立最小 C ABI 與 Swift InputMethodKit host，先處理固定 fixture text，不實作完整候選引擎；驗收：本機可產生 bundle，FFI ownership、重複建立／釋放與錯誤回傳測試通過。
-- [ ] 為 integration spike 準備安裝／移除腳本及 native smoke-test 文件；驗收：腳本可檢查 bundle 與路徑、預設不覆寫其他輸入法，文件包含 marked text、commit、取消及切換焦點的預期結果。
+- [x] 建立 Cargo workspace、固定 Rust 1.92.0 與非互動 replay CLI；證據：`cargo fmt --all -- --check`、workspace Clippy 與 debug／release tests 通過，各 80 tests。
+- [x] 定義 `Engine`、事件、output snapshot、reset 與只讀 key probe；證據：core API、context isolation、probe simulation 與 20,000-event bounded property smoke tests 通過。
+- [x] 在完整 decoder 接入前完成 C ABI 與 Swift InputMethodKit spike；證據：最初 bundle build 通過，`uv run --no-project --offline python` ctypes 驗證 key `1` 的 preedit `測試` 與 Enter 的一次性 commit。
+  - 固定文字 spike 已由正式 core 取代，未保留假輸入路徑。
+  - Rust FFI tests 驗證重複建立／釋放、ownership、非法 JSON／UTF-8、失敗不改狀態與一次性 Unicode commit。
+- [x] 準備 macOS 管理腳本與 native smoke-test 文件；證據：Bash syntax、16 sandbox dry-run cases、bundle／identifier／signature／checksum／path checks 通過。
   - 實際安裝、啟用與 native UI 操作列入 External Handoff；未驗證前不得將 spike 標為 native integration 已通過。
 
 ### P2 — Zhuyin parser 與單字輸入
 
-- [ ] 實作 Dachen mapping、音節 parser 與 canonical representation；驗收：五種聲調、可獨立成音節的聲母、ㄦ、合法／非法組合及中間刪除都有 table-driven tests。
-- [ ] 實作 composition state machine，查詢自製詞庫並產生單字候選；驗收：P0 的單字 fixture 全數通過，空狀態透傳與選字鍵衝突規則一致。
-- [ ] 增加非互動 replay regression suite；驗收：支援組字、選字、翻頁、取消、commit、按鍵重複及快捷鍵，預期結果不依賴 GUI 或 host OS。
+- [x] 實作 Dachen mapping、音節 parser 與 canonical representation；證據：parser table tests 包含完整 mapping、五聲、ㄦ、apical syllables、合法／非法組合、slot 刪除與全表 round-trip。
+- [x] 實作 composition state machine 與單字候選；證據：五聲、Space、Enter、Escape、候選模式、數字衝突、shortcut／mode 與 64-syllable limit 測試通過。
+- [x] 增加非互動 replay regression suite；證據：`fixtures/{basic,tones,modes,editing,limit-64,gestures,reselection,aliases}.jsonl` 由 CLI 自動比對，重播兩次輸出一致。
 
 ### P3 — 詞庫管線、詞組與斷詞
 
-- [ ] 建立詞庫 importer 與資料驗證；驗收：能檢出非法音節、缺失欄位、重複紀錄與無效頻率，並對每份詞組資料保存明確的讀音對應。
+- [x] 建立 versioned TSV importer／normalizer 與資料驗證；證據：lexicon tests 與 CLI atomic-export tests 通過，含非法音節、欄位、重複、頻率及 resource caps。
+  - `build-lexicon` 連續匯出兩次 bytes 一致，fixture 正規化產物 SHA-256 為 `7f57031c86bb4c3d909b4e24a08e54d771bba4cc7d06a7c164e121fb62be37d6`。
+  - 外部資料尚未取得完整權利證據，不實作或執行未核准來源的轉換。
   - 同一份已固定版本的來源，必須能重建相同排序與 checksum 的輸出。
   - 初期使用有版本的文字格式，在初始化時建立 in-memory index；沒有量測證據前不加入 binary format 或 mmap。
-- [ ] 實作以音節序列查詢的詞組索引及 dynamic-programming decoder；驗收：能找出最佳 segmentation，提供單字 fallback，未知讀音不被靜默刪除。
+- [x] 實作詞組索引與 dynamic-programming decoder；證據：non-greedy 最佳路徑、fixed-point frequency、deterministic ties、unknown fallback 與 64-syllable 有界搜尋測試通過。
   - 先用可解釋的詞頻分數與固定 tie-break rule；不加入尚無語料支持的語意模型。
   - 候選數量與搜尋範圍必須有界，不列舉所有可能斷詞組合。
-- [ ] 實作詞組候選、選取 span 鎖定與其餘區段重新計算；驗收：cursor 移動、刪除、改選及重新斷詞不修改未被編輯觸及的鎖定 span；編輯觸及鎖定 span 時先解鎖，顯示文字不假設一個音節必定對應一個 Unicode scalar。
+- [x] 實作詞組候選、鎖定與重新計算；證據：無關 span 保留、overlap 解鎖、不同長度改選、插入／刪除平移、Unicode 多 scalar 與 cursor mapping 測試通過。
 
 ### P4 — macOS MVP
 
-- [ ] 將完整 core 接入 InputMethodKit host；驗收：adapter contract tests 與 bundle build 通過，並準備 native marked text、candidate、commit 的重播案例。
-- [ ] 實作 UTF-8／UTF-16 range conversion、candidate 更新與 input context lifecycle；驗收：測試包含非 BMP Han character、emoji、combining sequence、stale callback 及重複 reset，不產生非法 range 或重複 commit。
-- [ ] 完成 macOS 安裝、更新、移除與還原指引；驗收：所有寫入路徑明列，能回復前一版，不自動修改使用者目前選取的 input source。
+- [x] 將完整 core 接入 InputMethodKit host；證據：CLT arm64 bundle build、125 pure Swift 與 96 actual C ABI assertions 通過，native smoke cases 已列入 `docs/macos.md`。
+- [x] 實作 UTF-8／UTF-16 conversion、candidate tokens 與 lifecycle；證據：非 BMP、emoji、combining sequence、過期／重複 callback、重複 reset、context isolation 與單次 commit 測試通過。
+  - `internal_error` 與未知 output status 會拒絕 host effects，並由 controller 丟棄 context。
+- [x] 完成 macOS 安裝、更新、移除與還原指引；證據：`docs/macos.md` 明列 current-user 路徑、backup／rollback 與 input-source 限制，腳本預設 dry-run，未執行 `--apply`。
   - 此階段的產品驗收仍需 External Handoff 的 macOS native checks。
 
 ### P5 — Windows TSF adapter
 
-- [ ] 實作 Rust TSF adapter 的 COM lifecycle、key sink、edit session 與 composition；驗收：具備 native build／test 指令，並用共用 fixture 定義 adapter contract tests。
-- [ ] 實作 native candidate presentation 與 UTF-16 offset conversion；驗收：測試涵蓋 key probe 不改變狀態、候選選取、焦點切換、composition cancellation 與 stale callback。
-- [ ] 準備 Windows native CI workflow、註冊／解除註冊及 smoke-test 腳本；驗收：檔案與操作文件完整，清楚區分 x64、x86、ARM64 的支援狀態，不把 DLL cross-compilation 當成 TSF 驗證。
-  - 目前沒有已確認可用的 Windows runner。實際編譯與執行結果待 runner 可用後附上；native gate 不得預先標記通過。
+- [ ] 實作並驗證 Rust TSF adapter 的 COM lifecycle、key sink、edit session 與 composition。
+  - 原始碼、native build／test scripts、16 portable tests 與 x64／x86／ARM64 type check／Clippy 已通過。
+  - 真正 DLL link、load、COM 與 Windows-only tests 尚未執行；native gate 保持 open。
+- [ ] 驗證 Windows native candidate presentation 與 UTF-16 conversion。
+  - UI-element interfaces、native LISTBOX fallback、portable Unicode／probe／lifecycle tests 與三架構 cross-check 已完成。
+  - Native candidate、edit-session ordering 與 UI-less host 行為仍需 Windows runner／desktop 證據。
+- [x] 準備 Windows CI、註冊／解除註冊與 smoke-test 文件；證據：三架構狀態已分列，YAML syntax 與 PowerShell 7.5.0 Linux AST parsing 通過；沒有執行註冊腳本。
+  - 已取得推送 `narumi/feat/offline-zhuyin-ime` 與執行 GitHub Actions native checks 的授權；CI 結果另行記錄，不包含任何 IME 安裝／註冊／啟用授權。
 
 ### P6 — Linux Fcitx5 adapter
 
-- [ ] 實作薄層 Fcitx5 addon，轉換按鍵、preedit、candidate 與 commit；驗收：addon 不包含另一套 parser／decoder，共用 fixture 的預期輸出與 core 一致。
-- [ ] 準備 Rust library 與 C++ addon 的 build／link／install 流程；驗收：明列 Fcitx5 development dependencies、C ABI header 與 library version 的一致性檢查。
-- [ ] 準備 Linux native CI workflow 與 smoke-test 文件；驗收：分開列出 X11、Wayland、GTK、Qt、browser、Electron 的待驗證項目，不把單一桌面測試結果推論到所有組合。
-  - 目前沒有已確認可用的 Linux native runner 或桌面 session。實際 build／desktop 結果依 External Handoff 補入。
+- [ ] 完成 Fcitx5 addon 的端到端候選契約。
+  - 薄層 addon、八份共用 fixture（342 records）、checksum、Unicode、lifecycle、Sensitive-only transition、modifier remap 與 Shift／Enter alias tests 通過。
+  - **仍有已知 blocker：** Fcitx5 5.1.7 與已查核的 5.1.14 D-Bus `SelectCandidate(index)` 沒有 generation。舊 UI index 可能選到新清單；captured CandidateWord tests 不能證明此路徑安全。
+  - 已加入 headless gap model 並保留 native gate，不自行更改 protocol、停用 click 或加入 custom candidate window。
+- [x] 建立 Rust／C++ build／link／install 流程；證據：Ubuntu 24.04 arm64、Fcitx5 5.1.7 clean build、ABI gate、4/4 CTests、安裝／移除 dry-run 與 C++ ASan／UBSan 4/4 tests 通過。
+  - Rust static library 未使用 sanitizer instrumentation，不將 C++ 結果當成 Rust sanitizer 證據。
+- [x] 準備 Linux CI、SDK dependencies 與 smoke-test matrix；證據：Docker image 固定 base digest，`docs/linux.md` 分列 X11／Wayland／GTK／Qt／browser／Electron 與已知 protocol gap。
+  - 已取得 arm64 headless build environment；尚無已授權的 desktop session。Headless 結果不代表 native 桌面通過。
 
 ### P7 — 穩定性、效能與可交付證據
 
-- [ ] 為 parser、state machine、decoder 與 FFI 加入 property tests 及有界 fuzz smoke tests；驗收：非法輸入不造成 panic 越界、非法 offset、重複 commit 或不可恢復的 state，所有失敗案例加入 regression fixture。
-- [ ] 建立 release-mode replay benchmark；驗收：記錄 CPU、OS、詞庫版本、資料集及量測方式，分開報告初始化時間、記憶體與按鍵處理延遲。
+- [x] 加入 property tests 與有界 fuzz smoke tests；證據：全表音節 round-trip、小型 lock layout 枚舉、20,000-event state-machine smoke、FFI malformed JSON／UTF-8 與 ownership tests 通過。
+  - Review 發現的雙 Shift chord、held-key alias、不同長度 span 改選、Sensitive transition 與 modifier remap 問題已修正，並有回歸測試。
+- [ ] 完成具代表性的 release-mode replay benchmark gate。
+  - 工具與人工 64-syllable stress report 已完成，原始數值保留在 `docs/benchmarks/fixture-64.json`。
+  - 正式可散布詞庫與適用 corpus 仍缺完整證據，不將 39-entry fixture 的結果視為此 gate 通過。
   - 初始目標：在最多 64 音節的具代表性 replay corpus 上，core key handling p95 < 5 ms；不包含平台 UI rendering。
   - 未取得可散布且具代表性的詞庫時，此項效能結論保持未驗證，不以極小 fixture 代替正式結果。
-- [ ] 建立持續保留的 `docs/native-validation.md`；驗收：每個 OS／架構／應用程式組合標明 passed、failed 或 unverified，附可重現步驟、build ID 與結果來源。
-- [ ] 整理架構、build、資料授權、安裝、移除及故障還原文件；驗收：`docs/architecture.md` 與實作一致，可用固定來源重建 artifact，所有尚未執行的 native checks 和發布限制均有明確交接。
+- [x] 建立 `docs/native-validation.md`；證據：保留 source/build IDs、artifact hashes、commands、實際通過的檢查、unverified native matrix 與已知 Fcitx blocker。
+- [x] 整理架構、build、資料授權、管理與還原文件；證據：README／三平台指南／SOURCES／native-validation 的 paths、links、YAML／PowerShell syntax 與 8 份 Mermaid diagrams 已檢查，build inputs 與限制均有交接。
 
 ## Validation Commands
 
@@ -204,7 +231,7 @@ cargo test --workspace --all-targets
 
 - **資料來源與品質：** 合法字音表不等於完整詞庫；沒有可靠詞頻，斷詞品質無法只靠演算法保證。先完成資料來源與小型 regression corpus。
 - **生命週期與文字索引：** native callback、edit session 及 offset 單位不同。用單一 core 契約、平台邊界轉換及重播測試控制差異。
-- **跨平台驗證：** 現有環境只能確認 macOS development tools。Windows／Linux 未實測項目保持 unverified，阻擋相應平台的發布聲明。
+- **跨平台驗證：** 已確認 macOS build 與 Linux headless checks；Windows native execution、各平台 desktop matrix 與 Fcitx index-only selection gap 仍阻擋相應發布聲明。
 - **操作品質：** 自動測試能驗證規則，不能證明選字符合使用者習慣。native 操作與主觀品質驗收需另行交接。
 
 ## Rollback / Recovery
@@ -230,11 +257,12 @@ cargo test --workspace --all-targets
 
 以下檢查的是實作計畫的交付證據，不代表尚未執行的 native acceptance 已通過。
 
-- [ ] 核心 parser、composition、decoder、選字與 commit 均為自研 Rust 實作；未依賴現成輸入引擎。
+- [x] 核心 parser、composition、decoder、選字與 commit 均為自研 Rust 實作；workspace dependencies 不含現成輸入引擎。
 - [ ] P0–P7 的 agent 可執行任務均附上有效證據；失敗、blocked 或缺少環境的檢查未被標成通過。
-- [ ] 共用 fixture、Unicode 邊界、事件透傳、重複 callback 與 FFI ownership 測試通過。
+- [ ] 端到端共用 fixture、Unicode、事件透傳、callback 與 FFI ownership 驗證完整。
+  - 本機 core／FFI／portable adapter tests 通過；Windows native callbacks 與 Fcitx stale UI protocol 路徑仍未通過，不能以 headless／type check 取代。
 - [ ] 可執行的 Rust quality gates、platform build 與 benchmark 已記錄結果；不可執行的 native checks 已明確交接。
 - [ ] 詞庫的來源、授權、署名與可重現建置已確認；未解決的資料限制持續阻擋產品散布。
-- [ ] `docs/native-validation.md` 已保留所有 native 結果、未驗證項目與發布限制，不以完成本計畫代替產品驗收。
+- [x] `docs/native-validation.md` 已保留實際結果、未驗證項目、已知 blocker 與發布限制，不以文件完成代替產品驗收。
 
 所有任務與完成檢查均有有效證據，且未解決交接事項已保留後，才刪除本 `PLAN.md`。不得提前刪除或將文件建立視為實作完成。
