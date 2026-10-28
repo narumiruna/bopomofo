@@ -57,6 +57,7 @@ Build、安裝、啟用與 native 驗證是不同步驟。建立 bundle／DLL／
 - [Data sources and licenses](data/SOURCES.md)
 - [Platform prerequisites](docs/platform-support.md)
 - [Native validation](docs/native-validation.md)
+- [Release workflow](docs/releases.md)
 - [Development rules](AGENTS.md)
 
 ## License
