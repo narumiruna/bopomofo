@@ -301,14 +301,35 @@ impl Service_Impl {
             state.focus = next;
             (previous, current)
         };
-        if let Some(context) = previous {
-            context.cancel(Event::FocusLost, true)?;
-        }
-        if let Some(context) = current {
-            context.inner.borrow_mut().focused = true;
-            context.dispatch(Event::Activate)?;
-        }
-        Ok(())
+        let canceled = previous.map_or(Ok(()), |context| context.cancel(Event::FocusLost, true));
+        let activated = (|| {
+            let Some(context) = current else {
+                return Ok(());
+            };
+            // Native cleanup can reenter focus callbacks. Do not reactivate a
+            // context if focus moved again or a nested callback activated it.
+            let is_current = self
+                .activation
+                .try_borrow()
+                .map_err(|_| Error::from(E_UNEXPECTED))?
+                .as_ref()
+                .is_some_and(|state| state.focus == next);
+            if !is_current {
+                return Ok(());
+            }
+            {
+                let mut state = context
+                    .inner
+                    .try_borrow_mut()
+                    .map_err(|_| Error::from(E_UNEXPECTED))?;
+                if !state.valid || state.focused {
+                    return Ok(());
+                }
+                state.focused = true;
+            }
+            context.dispatch(Event::Activate).map(|_| ())
+        })();
+        canceled.and(activated)
     }
 
     fn remove(&self, native: &ITfContext) -> Result<()> {

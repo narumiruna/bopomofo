@@ -41,6 +41,7 @@ struct NativeContext {
     status: Cell<TS_STATUS>,
     compartment: ITfCompartment,
     fail_next_edit: Cell<bool>,
+    on_edit: RefCell<Option<Box<dyn FnOnce()>>>,
 }
 
 impl NativeContext {
@@ -49,6 +50,7 @@ impl NativeContext {
             status: Cell::new(TS_STATUS::default()),
             compartment: Compartment { value }.into(),
             fail_next_edit: Cell::new(false),
+            on_edit: RefCell::new(None),
         })
     }
 }
@@ -64,6 +66,10 @@ impl ITfContext_Impl for NativeContext_Impl {
         _edit: Ref<ITfEditSession>,
         _flags: TF_CONTEXT_EDIT_CONTEXT_FLAGS,
     ) -> Result<HRESULT> {
+        let callback = self.on_edit.borrow_mut().take();
+        if let Some(callback) = callback {
+            callback();
+        }
         if self.fail_next_edit.replace(false) {
             return Err(E_FAIL.into());
         }
@@ -432,6 +438,107 @@ fn assert_key_delivery(service: &ComObject<Service>, native: &ITfContext) {
         assert_eq!(context.inner.borrow().pending.len(), before + 2);
     }
     assert_no_commit(&context);
+}
+
+#[test]
+fn focus_activates_new_context_when_previous_cleanup_fails() {
+    for push in [false, true] {
+        let manager = manager();
+        let a = NativeContext::new(None);
+        let b = NativeContext::new(None);
+        let a_native: ITfContext = a.to_interface();
+        let b_native: ITfContext = b.to_interface();
+        let previous: ITfDocumentMgr = Document {
+            stack: RefCell::new(vec![a_native.clone()]),
+        }
+        .into();
+        *manager.focus.borrow_mut() = Some(previous.clone());
+        let service = activated(&manager);
+        let sink: ITfThreadMgrEventSink = service.to_interface();
+        unsafe {
+            sink.OnSetFocus(&previous, None).unwrap();
+            assert_key_delivery(&service, &a_native);
+            let old = current_context(&service, &a_native);
+            old.inner.borrow_mut().scheduled = false;
+            a.fail_next_edit.set(true);
+            let next = if push {
+                previous.Push(&b_native).unwrap();
+                previous.clone()
+            } else {
+                let next: ITfDocumentMgr = Document {
+                    stack: RefCell::new(vec![b_native.clone()]),
+                }
+                .into();
+                *manager.focus.borrow_mut() = Some(next.clone());
+                next
+            };
+            let result = if push {
+                sink.OnPushContext(&b_native)
+            } else {
+                sink.OnSetFocus(&next, &previous)
+            };
+            assert_eq!(result.unwrap_err().code(), E_FAIL);
+            assert_focus(&service, Some(&b_native));
+            let active = current_context(&service, &b_native);
+            assert_eq!(active.inner.borrow().pending.len(), 1);
+            assert_key_delivery(&service, &b_native);
+            let pending = active.inner.borrow().pending.len();
+            sink.OnSetFocus(&next, &previous).unwrap();
+            assert_eq!(active.inner.borrow().pending.len(), pending);
+            assert_key_delivery(&service, &b_native);
+            assert_no_commit(&old);
+        }
+    }
+}
+
+#[test]
+fn cleanup_reentry_does_not_reactivate_a_superseded_context() {
+    let manager = Rc::new(manager());
+    let a = NativeContext::new(None);
+    let a_native: ITfContext = a.to_interface();
+    let b_native: ITfContext = NativeContext::new(None).to_interface();
+    let c_native: ITfContext = NativeContext::new(None).to_interface();
+    let document = |native: &ITfContext| -> ITfDocumentMgr {
+        Document {
+            stack: RefCell::new(vec![native.clone()]),
+        }
+        .into()
+    };
+    let first = document(&a_native);
+    let second = document(&b_native);
+    let third = document(&c_native);
+    *manager.focus.borrow_mut() = Some(first.clone());
+    let service = Rc::new(activated(&manager));
+    let sink: ITfThreadMgrEventSink = service.to_interface();
+    unsafe {
+        sink.OnSetFocus(&first, None).unwrap();
+        current_context(&service, &a_native)
+            .inner
+            .borrow_mut()
+            .scheduled = false;
+        let weak_service = Rc::downgrade(&service);
+        let weak_manager = Rc::downgrade(&manager);
+        *a.on_edit.borrow_mut() = Some(Box::new(move || {
+            let service = weak_service.upgrade().unwrap();
+            let manager = weak_manager.upgrade().unwrap();
+            *manager.focus.borrow_mut() = Some(third.clone());
+            let sink: ITfThreadMgrEventSink = service.to_interface();
+            sink.OnSetFocus(&third, None).unwrap();
+        }));
+        *manager.focus.borrow_mut() = Some(second.clone());
+        sink.OnSetFocus(&second, &first).unwrap();
+        assert_focus(&service, Some(&c_native));
+        assert_key_delivery(&service, &c_native);
+        let keys: ITfKeyEventSink = service.to_interface();
+        assert!(
+            !keys
+                .OnTestKeyDown(&b_native, WPARAM(0x31), LPARAM(0))
+                .unwrap()
+                .as_bool()
+        );
+        assert_no_commit(&current_context(&service, &a_native));
+        assert_no_commit(&current_context(&service, &b_native));
+    }
 }
 
 #[test]
