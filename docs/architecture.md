@@ -213,6 +213,6 @@ flowchart LR
 
 - 平台支援範圍：最低 OS 版本、CPU 架構與必要的應用程式組合尚未確認，不預先宣稱支援。
 - 詞庫來源與詞頻：須完成來源調查與授權核對，才可決定正式匯入與散布的資料。
-- Native 驗證環境：macOS bundle 與 Linux headless build 已可在目前環境檢查。Windows x64 CI 已通過 build／load／非註冊 tests；各平台 installed desktop matrix 仍須獨立證據。
+- Native 驗證環境：macOS bundle 與 Linux headless build 已可在目前環境檢查。Windows 三架構 CI 已通過 build／load／非註冊 tests；各平台 installed desktop matrix 仍須獨立證據。
 
 先以自製 fixture 建立 core 與 replay，再進行最小 macOS integration spike，之後完成 parser、decoder 與 macOS MVP，再接 Windows／Linux。開發順序不代表各平台已通過驗收或取得發布授權。

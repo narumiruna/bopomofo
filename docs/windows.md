@@ -2,16 +2,16 @@
 
 ## Status
 
-The Windows x64 DLL passed native build, COM unit tests, and non-registration loader tests. Installed TSF and desktop input remain **unverified**.
+The Windows x64, x86, and ARM64 DLLs passed native build, COM unit tests, and non-registration loader tests. Installed TSF and desktop input remain **unverified**.
 A successful cross-target `cargo check` does not validate a DLL link, TSF registration, or desktop input.
 
 | Target | Compile/type check on macOS | Windows DLL build and tests | Registered TSF and apps |
 | --- | --- | --- | --- |
 | x64 (`x86_64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: debug/release build, 19 unit tests and 1 loader test | Unverified |
-| x86 (`i686-pc-windows-msvc`) | Passed with Rust 1.92.0 | Unverified | Unverified |
-| ARM64 (`aarch64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Unverified | Unverified |
+| x86 (`i686-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: debug/release build, 19 unit tests and 1 loader test under WOW64 | Unverified |
+| ARM64 (`aarch64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: debug/release build, 19 unit tests and 1 loader test on Windows 11 ARM64 | Unverified |
 
-The development host is macOS ARM64. GitHub Actions provided a Windows Server 2022 x64 MSVC runner. [Run 40652597435](https://github.com/narumiruna/bopomofo/actions/runs/40652597435) passed at commit `f65a705ea598fc20368851f8fe63096408df6a2d`. This does not validate a live document edit session or candidate window. No DLL was installed, registered, enabled, removed, or published. A Windows release is blocked until the applicable native checks pass. An x64 result must not be used as an x86 or ARM64 result.
+The development host is macOS ARM64. GitHub Actions provided Windows Server 2022 x64/WOW64 and Windows 11 ARM64 runners. [Run 40654797923](https://github.com/narumiruna/bopomofo/actions/runs/40654797923) passed all three targets at commit `084517df55c064015ff32249ceaa7c15eb0a382d`. This does not validate a live document edit session or candidate window. No DLL was installed, registered, enabled, removed, or published. A Windows release is blocked until the applicable native checks pass. An x64 result must not be used as an x86 or ARM64 result.
 
 ## Implementation
 
@@ -109,7 +109,7 @@ The Windows-only tests are type-checked by cross-target checks but are not execu
 
 ## Windows native build and CI preparation
 
-Prerequisites are a Windows runner, Rust 1.92.0 with the selected target, MSVC C++ build tools, Windows SDK libraries, and PowerShell. Exact Windows and SDK versions still need native validation. Use a process architecture that can execute the selected target; ARM64 requires an ARM64 runner. x86 tests on x64 use a distinct WOW64 process and do not validate x86 desktop apps by themselves.
+Prerequisites are a Windows runner, Rust 1.92.0 with the selected target, MSVC C++ build tools, Windows SDK libraries, and PowerShell. Verified OS builds are recorded in `docs/native-validation.md`; minimum supported Windows and SDK versions are not yet selected. Use a process architecture that can execute the selected target; ARM64 requires an ARM64 runner. x86 tests on x64 use a distinct WOW64 process and do not validate x86 desktop apps by themselves.
 
 Run one target at a time from the repository root:
 
@@ -121,7 +121,7 @@ Run one target at a time from the repository root:
 
 The script checks formatting, runs target Clippy, builds a debug DLL, runs non-registration tests, and builds a release DLL. It validates and copies the fixture and its digest beside `target/<target>/release/bopomofo_tsf.dll`. It writes only repository build outputs. It does not install tools, register the DLL, change input settings, or publish artifacts.
 
-`.github/workflows/windows.yml` runs the target-specific native checks for x64 and x86 on `windows-2022`, and ARM64 on `windows-11-arm`. These standard runner labels are available for this public repository. The new x86/ARM64 matrix is pending verification; x64 passed the prior common workflow. `.github/workflows/checks.yml` retains the Windows host build and workspace tests. Neither workflow registers, enables, or publishes the IME. Native build/test CI does not replace desktop smoke tests.
+`.github/workflows/windows.yml` runs the target-specific native checks for x64 and x86 on `windows-2022`, and ARM64 on `windows-11-arm`. These standard runner labels are available for this public repository. All three targets passed build and non-registration tests. Logs show that each target's test executables ran. `.github/workflows/checks.yml` retains the Windows host build and workspace tests. Neither workflow registers, enables, or publishes the IME. Native build/test CI does not replace desktop smoke tests.
 
 All four PowerShell scripts passed AST parsing in an isolated official PowerShell 7.5.0 Linux amd64 container. `Build-Test.ps1` then passed on Windows x64 CI. The three registration/removal helper scripts were not invoked. Registry changes, registration, activation, and desktop input remain unverified.
 

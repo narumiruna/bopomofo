@@ -184,13 +184,13 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
 - [ ] 實作並驗證 Rust TSF adapter 的 COM lifecycle、key sink、edit session 與 composition。
   - 原始碼、native build／test scripts、16 portable tests 與 x64／x86／ARM64 type check／Clippy 已通過。
   - 首次 CI 的 DLL loader test 因 build 前置步驟缺失而失敗；修正後 `f65a705`／run `40652597435` 的 5 jobs 全部通過。
-  - Windows x64 debug／release DLL、19 unit tests、1 loader test 已通過；實際 document edit session／installed TSF 行為仍需獨立驗證。
+  - `084517d` 的 common CI 5 jobs 與 Windows matrix 3 jobs 全通過。三架構各完成 debug／release build、19 unit tests 與 1 loader test；實際 document edit session／installed TSF 仍未驗證。
 - [ ] 驗證 Windows native candidate presentation 與 UTF-16 conversion。
   - UI-element interfaces、native LISTBOX fallback、portable Unicode／probe／lifecycle tests 與三架構 cross-check 已完成。
   - Candidate COM methods 與 portable ordering tests 已通過；實際 candidate rendering、document edit sessions 與 UI-less app 行為仍未驗證。
 - [x] 準備 Windows CI、註冊／解除註冊與 smoke-test 文件；證據：三架構狀態已分列，YAML syntax 與 PowerShell 7.5.0 Linux AST parsing 通過；沒有執行註冊腳本。
   - 已取得推送 `narumi/feat/offline-zhuyin-ime` 與執行 GitHub Actions native checks 的授權；不包含任何 IME 安裝／註冊／啟用授權。
-  - Windows 三架構 workflow 已啟用，x86／ARM64 native 結果待驗證；不以既有 x64 結果代替。
+  - Native run `40654797923` 已確認 x64、WOW64 x86 與 native ARM64 test executables 各自執行並通過，不以 cross-check 代替 runtime 結果。
 
 ### P6 — Linux Fcitx5 adapter
 
@@ -210,6 +210,7 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
 - [ ] 完成具代表性的 release-mode replay benchmark gate。
   - 工具與人工 64-syllable stress report 已完成，原始數值保留在 `docs/benchmarks/fixture-64.json`。
   - 正式可散布詞庫與適用 corpus 仍缺完整證據，不將 39-entry fixture 的結果視為此 gate 通過。
+  - 另查核 NAER 與 Tatoeba：前者未取得適用資料 grant；後者 CC0 Mandarin 僅一筆，一般 corpus 不能直接證明 Taiwan usage representativeness。完整紀錄在 `data/SOURCES.md`。
   - 初始目標：在最多 64 音節的具代表性 replay corpus 上，core key handling p95 < 5 ms；不包含平台 UI rendering。
   - 未取得可散布且具代表性的詞庫時，此項效能結論保持未驗證，不以極小 fixture 代替正式結果。
 - [x] 建立 `docs/native-validation.md`；證據：保留 source/build IDs、artifact hashes、commands、實際通過的檢查、unverified native matrix 與已知 Fcitx blocker。
@@ -233,7 +234,7 @@ cargo test --workspace --all-targets
 
 - **資料來源與品質：** 合法字音表不等於完整詞庫；沒有可靠詞頻，斷詞品質無法只靠演算法保證。先完成資料來源與小型 regression corpus。
 - **生命週期與文字索引：** native callback、edit session 及 offset 單位不同。用單一 core 契約、平台邊界轉換及重播測試控制差異。
-- **跨平台驗證：** 已確認 macOS build 與 Linux headless checks；Windows native execution、各平台 desktop matrix 與 Fcitx index-only selection gap 仍阻擋相應發布聲明。
+- **跨平台驗證：** 已確認 macOS build 與 Linux headless checks；各平台 installed desktop matrix 與 Fcitx index-only selection gap 仍阻擋相應發布聲明。
 - **操作品質：** 自動測試能驗證規則，不能證明選字符合使用者習慣。native 操作與主觀品質驗收需另行交接。
 
 ## Rollback / Recovery

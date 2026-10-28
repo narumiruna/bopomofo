@@ -23,6 +23,7 @@
 | `mcbopomofo-data` | 直接的 Zhuyin 字詞 mapping 與 phrase occurrence counts | Root MIT 與 data 的上游 provenance 必須分開查核 | **Blocked approval**；libtabe notices 與 frequency provenance 尚未確認完整。 |
 | `moe-revised` | Traditional Chinese 字詞、Zhuyin、definitions | 官方指定 CC BY-ND 3.0 Taiwan；未取得本專案轉換所需的另行許可 | **Blocked for transformed lexicon**；不匯入、不假設 ND 允許 extraction。 |
 | `naer-coct` | 官方提供通用詞頻表下載連結 | 已查閱頁面未提供適用於該檔的轉換／散布授權證據 | **Rights unverified**；未下載、匯入或散布詞頻表。 |
+| `tatoeba-cmn` | Mandarin sentences 與 translation-base metadata | 官方區分 CC BY 2.0 FR 一般 corpus 與 CC0 subset | **Candidate only**；CC0 僅一筆，未提供 Taiwan 詞頻或 gold Zhuyin replay 證據。 |
 
 ## Self-authored fixtures
 
@@ -194,6 +195,26 @@ README 記載 counts 由 1998 年收集的 Taiwan web pages 抽樣 1,200,000 頁
 - 不因 publisher 是政府機關或檔案可公開下載，就推論適用 Open Government Data License。
 - 這不證明 publisher 一定禁止再利用；仍需適用 license 或 data-specific rights-holder confirmation。未下載 spreadsheet，沒有 dataset checksum，也未將檔名日期當成已驗證的資料版本。
 - 本地下載頁 HTML SHA-256：`201bbbbe290ba26ed00880f191cb69c858abca6834b68e5046cd64b7d95f4f15`；使用說明 HTML：`9c7f9f4fffabc715c16c9b583b90e008621619205c61d27e9f427ffde1e5673d`。這些只識別查核頁面，不是 publisher signature 或 data-file checksum。
+
+### Tatoeba Mandarin corpus
+
+2026-10-28 查閱 [official downloads](https://tatoeba.org/en/downloads)、[English terms](https://tatoeba.org/en/terms_of_use) 與 [French terms](https://tatoeba.org/fr/terms_of_use)。下載頁明示一般文字 exports 為 [CC BY 2.0 FR](https://creativecommons.org/licenses/by/2.0/fr/legalcode)，另有 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/legalcode) sentences subset；不能將一般 corpus 或 metadata 宣稱為 CC0。
+
+以下檔案僅下載至 repository 外供檢查，未匯入、建立 frequency artifact 或散布：
+
+| Official URL | Decoded rows / fields | Archive SHA-256 |
+| --- | --- | --- |
+| [cmn_sentences_CC0.tsv.bz2](https://downloads.tatoeba.org/exports/per_language/cmn/cmn_sentences_CC0.tsv.bz2) | 1 row，4 fields，59 bytes | `72c6ac699497cbc9b75f6c021ef16dfaa91ab760fbb407217902b6b5388401c0` |
+| [cmn_sentences_detailed.tsv.bz2](https://downloads.tatoeba.org/exports/per_language/cmn/cmn_sentences_detailed.tsv.bz2) | 89,211 rows，6 fields，8,645,115 bytes | `7af009b234bbb21ed6a254c2b55fa7c81c9dd53509d0982cd92c1097573f9af5` |
+| [cmn_sentences_base.tsv.bz2](https://downloads.tatoeba.org/exports/per_language/cmn/cmn_sentences_base.tsv.bz2) | 89,211 rows，2 fields，1,291,703 bytes | `bff1558965ebe08fa56d0a19353b90dc9636da479936183660f4d2f32377e4a2` |
+
+- 上述 checksum 是本地計算，不是 publisher signature。Exports 每週六更新，URL 不是 immutable snapshot；正式採用仍須保存原始 bytes、notices 與固定轉換規則。
+- CC0 Mandarin export 只有一筆 Simplified Chinese sentence，不足以支援 phrase-frequency 估計、Traditional Chinese coverage 或代表性 benchmark。
+- Detailed fields 是 ID、language、text、owner username、added date、modified date；沒有 gold Zhuyin 或 keystroke replay。
+- Base metadata 與 detailed IDs 完全相同，分為 12,287 originals、76,689 translations 與 235 unknown。Terms §6.6 指出 translation 可能涉及原句權利；owner 欄不是完整 author/editor history。
+- 一般 corpus 可評估為 prototype occurrence estimates，但須處理 attribution、source notices、translation provenance、script review、讀音驗證與 train/benchmark partition。不能把此評估當成 import approval。
+- 已查閱證據未建立 Taiwan usage representativeness，不用它替代目前的正式詞頻／代表性效能 gate，也不把 occurrence estimates 稱為已證明的產品詞頻。
+- 下載頁 HTML SHA-256：`91f1467b65cb57d3a82c956932077c72c43c98fa8e47eca3233166c51ab7c5ff`；English terms：`f3e46eaac2d25bfacaab4e3cb834bd5252bb3df6367dd9da932bf46ec5ca2c22`。保留 AGPL code、CC BY-SA 4.0 dictionary data 與 CC BY 2.0 FR corpus 的個別義務，不能將它們混稱為 AGPL-only。
 
 ## Import and release gate
 

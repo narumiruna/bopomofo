@@ -52,7 +52,7 @@ Container 只建立暫存 build directory，不安裝或啟用 IME，不連接 d
 | Rust format / Clippy | 本機 workspace format、Clippy warnings-as-errors 已通過。 | 最終 source 變更後仍須重跑；以 command exit status 為準。 |
 | macOS arm64 bundle | CLT Swift 6.4 + Rust 1.92.0，plist／ABI／SHA-256／ad-hoc signature checks 通過。 | Deployment target 13.0 不是已驗證最低 OS。 |
 | macOS standalone contracts | 125 pure adapter assertions、96 actual C ABI assertions、16 management dry-run cases 通過。 | 不建立 IMKServer session，不啟動輸入法，不執行 `--apply`。 |
-| Windows x64 / x86 / ARM64 source | 三個 MSVC targets 均通過 pinned Rust 1.92.0 `cargo check` 與 target Clippy。 | 這是本機 cross-check；x64 native build／load 的獨立 CI 證據見下節，x86／ARM64 runtime 尚未驗證。 |
+| Windows x64 / x86 / ARM64 source | 三個 MSVC targets 均通過 pinned Rust 1.92.0 `cargo check` 與 target Clippy。 | 這是本機 cross-check；三架構 native build／load 的獨立 CI 證據見下節，installed TSF 仍未驗證。 |
 | Windows portable contracts | 在 macOS 執行的 16 tests 通過，含 physical scan codes、post-event modifiers、offsets、checksum、probe、stale tickets 與 dispatch gate。 | 不是 COM／TSF native runtime 證據。 |
 | Linux arm64 headless | 最終 source clean build、ABI／C++ contracts 4/4 及 C++ ASan／UBSan 4/4 通過；含 Shift reset、native remap、Sensitive 與八份 fixture。 | ASan／UBSan adapter test 230.79 s；Rust archive 為正常 release，未使用 sanitizer instrumentation；不證明 desktop 或 index-only UI 安全。 |
 | Native CI preparation | `.github/workflows/checks.yml` 與 `.github/workflows/windows.yml` 已啟用，3 份 YAML parse 通過。 | 已推送並觸發，首次 run 的失敗與重驗狀態見下節。 |
@@ -80,7 +80,15 @@ Container 只建立暫存 build directory，不安裝或啟用 IME，不連接 d
 - Ubuntu 24.04：workspace 80 tests 通過；x64 與 arm64 Fcitx5 jobs 各完成 build／ABI 與 4/4 headless CTests。
 - 此 run 沒有 installed IME、真實 document edit session、UI-less app、native candidate rendering 或 desktop 相容性證據；這些 gate 保持 open。
 
-另啟用 Windows x64／x86／ARM64 native matrix。x86 在 x64 runner 的 WOW64 process 執行，ARM64 使用 `windows-11-arm`；新矩陣結果尚待驗證，不沿用 x64 結果。
+Commit `084517df55c064015ff32249ceaa7c15eb0a382d` 的 [common run 40654797765](https://github.com/narumiruna/bopomofo/actions/runs/40654797765) **5/5 jobs 通過**，[Windows run 40654797923](https://github.com/narumiruna/bopomofo/actions/runs/40654797923) **3/3 jobs 通過**。此版本的 87-path source snapshot SHA-256 為 `03c9ebae5e5c141365c39921baca152238aec4917d177e03767eed9b811016be`。
+
+| Windows target | Actual environment | Result / build job ID |
+| --- | --- | --- |
+| `x86_64-pc-windows-msvc` | Windows Server 2022，NT 10.0.20348.0，x64 | Debug／release build、19 unit tests、1 debug DLL loader test passed；job `122703118889`。 |
+| `i686-pc-windows-msvc` | 相同 x64 OS，實際執行 WOW64 x86 test executables | 相同 19 + 1 tests passed；job `122703118421`。 |
+| `aarch64-pc-windows-msvc` | Windows 11，NT 10.0.26200.0，Rust host `aarch64-pc-windows-msvc` | 相同 19 + 1 tests passed；job `122703118971`。 |
+
+Logs 已確認三個 target directory 的 test executables 實際執行，不是只 cross-check。三列都未註冊、啟用或進行 desktop input。不能將 WOW64 結果推論到 x86 app integration，或將 native ARM64 結果推論到 ARM64 上的其他 emulated apps。
 
 ## Artifact identity
 
@@ -100,7 +108,7 @@ C ABI header
 SHA-256 6a2480cbae7000618cba390a3932998595570a90f1a5729f4baab3bb93ff3167
 ```
 
-每次重建後，以 `platforms/macos/build/build-evidence.txt` 的新 hash 核對本節。Build 輸出與 binary 不納入 Git。Windows x64 debug／release DLL 已在上述 CI 產生並驗證；build ID 為 commit／run／job `f65a705`／`40652597435`／`122695963038`。Workflow 未輸出 Windows DLL hash，未下載或發布 binary，不提供虛構 hash。
+每次重建後，以 `platforms/macos/build/build-evidence.txt` 的新 hash 核對本節。Build 輸出與 binary 不納入 Git。Windows 三架構 debug／release DLL 已在 CI 產生；debug loader tests 通過。最新 build IDs 為 commit `084517d`、run `40654797923` 與上表各 job ID。Workflow 未輸出 Windows DLL hash，未下載或發布 binary，不提供虛構 hash。
 
 Linux 最終 clean container build：
 
@@ -188,7 +196,7 @@ sequenceDiagram
 
 | Responsible role | Prerequisite / required action | 尚未通過的 gate |
 | --- | --- | --- |
-| Windows tester / CI owner | x64 build／load／非註冊 tests 已通過；提供 x86／ARM64 runtime，以及已授權的 installed TSF／app 環境。 | x86／ARM64 native execution、registration、activation、實際 document edit session 與 desktop matrix 仍未驗證。 |
+| Windows tester / CI owner | 三架構 build／load／非註冊 tests 已通過；提供已授權的 installed TSF／app 環境。 | Registration、activation、實際 document edit session、candidate rendering 與各架構 desktop matrix 仍未驗證。 |
 | macOS tester | 授權使用 scoped 管理腳本安裝／啟用 bundle，依 macOS guide 操作與保存結果。 | 所有 installed native app／display checks 未驗證。 |
 | Linux tester / framework owner | 提供 X11／Wayland session，驗證各 frontend，並解決或證明 candidate request 的 generation／ordering 契約。 | Desktop matrix 與 stale rendered-click 正確性未通過。 |
 | Data / release owner | 提供權利完整、可轉換與散布的 phrase／frequency data、notices 與代表性 corpus。 | 正式詞庫、代表性效能及資料散布 gate 未通過；詳見 `data/SOURCES.md`。 |

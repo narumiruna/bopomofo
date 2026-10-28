@@ -14,8 +14,8 @@
 | macOS arm64 / InputMethodKit | **Available**：Swift、Clang、AppKit、InputMethodKit headers/link stubs | SDK typecheck、bundle build 與 standalone adapter tests 通過；native checks 仍需安裝／啟用授權及 desktop 操作。 |
 | macOS x86_64 / InputMethodKit | **Blocked**：未安裝 `x86_64-apple-darwin` Rust target，未確認相應 runner | 尚無 x86_64 build 或 native 結果；arm64 結果不能推論到 Intel Mac。 |
 | Windows x64，`x86_64-pc-windows-msvc` | Cross-check 與 Windows Server 2022 native CI **Available** | Debug／release DLL、19 unit tests 與 1 loader test 通過；installed TSF／desktop 未驗證。 |
-| Windows x86，`i686-pc-windows-msvc` | Rust cross-check **Available**；native 32-bit DLL／toolchain **Blocked** | x64 build 不代表 32-bit application 可載入或正確輸入。 |
-| Windows ARM64，`aarch64-pc-windows-msvc` | Rust cross-check **Available**；native ARM64 build／runtime **Blocked** | 未驗證 native ARM64 或 emulated application 組合。 |
+| Windows x86，`i686-pc-windows-msvc` | Cross-check 與 Windows Server 2022 WOW64 CI **Available** | x86 debug／release DLL、19 unit tests 與 1 loader test 通過；不是 installed x86 app 驗收。 |
+| Windows ARM64，`aarch64-pc-windows-msvc` | Cross-check 與 Windows 11 ARM64 CI **Available** | ARM64 debug／release DLL、19 unit tests 與 1 loader test 通過；native／emulated app 組合仍未驗證。 |
 | Linux arm64 / Fcitx5 | Docker headless environment **Available**；macOS host 不直接安裝 Fcitx5 SDK | 已建立 Ubuntu 24.04／Fcitx5 5.1.7 headless environment；desktop session 與已知 integration gaps 仍未通過。 |
 | Linux x86_64 / Fcitx5 | Ubuntu 24.04 native headless CI **Available** | Build／ABI／4 CTests 通過；沒有 desktop session，不推論到 GTK／Qt／browser／Electron。 |
 
@@ -134,7 +134,7 @@ Microsoft API 頁面的歷史 minimum-client metadata 不代表本專案支援�
 
 需要 Windows native runner、[Windows SDK](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/)、MSVC C++ build tools/linker、相應 target/import libraries，以及 Rust MSVC target。每一 architecture 分別建置 DLL；in-process COM DLL 必須符合 application architecture。
 
-以下是 Windows native developer shell 指令，不是 macOS 執行結果。x64 native CI 已通過；x86／ARM64 仍須獨立執行：
+以下是 Windows native developer shell 指令，不是 macOS 執行結果。三架構 native build／非註冊 tests 已獨立通過，installed desktop 仍未驗證：
 
 ```powershell
 cargo build --release -p ime-windows --target x86_64-pc-windows-msvc
@@ -200,4 +200,4 @@ Headless container 可以提供 build/link 或 C ABI test 證據，但不能證�
 
 每筆 native 結果至少記錄 OS/build、CPU architecture、app/toolkit/compositor version、repository revision、artifact SHA-256、lexicon revision、測試步驟、預期與實際結果，以及 `passed`、`failed` 或 `unverified`。不得記錄使用者實際輸入內容；驗證只使用固定的自製 fixture。
 
-仍受阻的交接：Windows x86／ARM64 runtime、各平台 installed IME／native application matrix、Linux X11／Wayland desktop sessions，以及安裝與 desktop 操作授權。Linux headless development build 不再是缺少環境的項目。最低 OS、CPU/app 支援聲明、signing/notarization 與 release approval 都尚未完成。
+仍受阻的交接：各平台 installed IME／native application matrix、Windows 實際 document edit sessions、Linux X11／Wayland desktop sessions，以及安裝與 desktop 操作授權。Linux headless development build 不再是缺少環境的項目。最低 OS、CPU/app 支援聲明、signing/notarization 與 release approval 都尚未完成。
