@@ -94,7 +94,7 @@ docker run --rm \
 
 The base Ubuntu image is pinned by digest in `ci/Dockerfile`. The build downloads development tools and Cargo dependencies; input processing itself is offline. Outputs stay in the ephemeral container. `ci/check.sh` builds, runs CTest, and checks shell syntax. It does not run an IME daemon or installation command.
 
-`ci/linux-headless.yml.in` is a preparation snippet for the common workflow owner. It requests separate Ubuntu x86_64 and ARM64 runners. It is not an active workflow and is not evidence that either CI job has run.
+`ci/linux-headless.yml.in` is an inactive reference snippet. The active `.github/workflows/checks.yml` runs separate Ubuntu x86_64 and ARM64 jobs. Both passed at `f65a705` in [run 40652597435](https://github.com/narumiruna/bopomofo/actions/runs/40652597435). These are headless build/ABI/contracts, not desktop tests.
 
 ## Test evidence and limits
 
@@ -107,7 +107,7 @@ The base Ubuntu image is pinned by digest in `ci/Dockerfile`. The build download
 | C++ AddressSanitizer + UndefinedBehaviorSanitizer | Debug C++ build and CTest 4/4 passed with leak detection and halt-on-UB. Rust staticlib was a normal release build, not sanitizer-instrumented. |
 | Install/uninstall dry-run and Bash syntax | Passed. No apply operation ran. |
 | DBus delayed rendered-index selection | Known protocol gap reproduced by a controlled current-list lookup model. Not an end-to-end native test or safety pass; P6 remains blocked. |
-| Linux x86_64 build | Unverified. Workflow preparation only. |
+| Linux x86_64 build | Passed: native Ubuntu 24.04 CI build/ABI/4 CTests at `f65a705`. No desktop checks. |
 | Native addon load, X11/Wayland, toolkit/application integration | Unverified. No desktop session ran. |
 
 The C++ contract executable accepts a lexicon path, its manifest path, and one or more shared JSONL replay files:

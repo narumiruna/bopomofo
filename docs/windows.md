@@ -121,7 +121,7 @@ Run one target at a time from the repository root:
 
 The script checks formatting, runs target Clippy, builds a debug DLL, runs non-registration tests, and builds a release DLL. It validates and copies the fixture and its digest beside `target/<target>/release/bopomofo_tsf.dll`. It writes only repository build outputs. It does not install tools, register the DLL, change input settings, or publish artifacts.
 
-`platforms/windows/ci/windows.yml` is a preparation template, not an active workflow. A CI owner must confirm runner availability and review it before placing it in `.github/workflows/`. The template's `windows-2025` and `windows-11-arm` labels have not run for this repository. The active `.github/workflows/checks.yml` uses `windows-2022` for the verified x64 build. The workflow does not register, enable, or publish the IME. Native build/test CI does not replace desktop smoke tests.
+`.github/workflows/windows.yml` runs the target-specific native checks for x64 and x86 on `windows-2022`, and ARM64 on `windows-11-arm`. These standard runner labels are available for this public repository. The new x86/ARM64 matrix is pending verification; x64 passed the prior common workflow. `.github/workflows/checks.yml` retains the Windows host build and workspace tests. Neither workflow registers, enables, or publishes the IME. Native build/test CI does not replace desktop smoke tests.
 
 All four PowerShell scripts passed AST parsing in an isolated official PowerShell 7.5.0 Linux amd64 container. `Build-Test.ps1` then passed on Windows x64 CI. The three registration/removal helper scripts were not invoked. Registry changes, registration, activation, and desktop input remain unverified.
 

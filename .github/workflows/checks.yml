@@ -29,10 +29,6 @@ jobs:
       - name: macOS bundle and adapter contracts
         if: runner.os == 'macOS'
         run: bash platforms/macos/scripts/test.sh
-      - name: Windows DLL and non-registration tests
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ./platforms/windows/scripts/Build-Test.ps1 -Target x86_64-pc-windows-msvc
 
   fcitx5:
     strategy:

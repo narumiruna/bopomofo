@@ -189,7 +189,8 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
   - UI-element interfaces、native LISTBOX fallback、portable Unicode／probe／lifecycle tests 與三架構 cross-check 已完成。
   - Candidate COM methods 與 portable ordering tests 已通過；實際 candidate rendering、document edit sessions 與 UI-less app 行為仍未驗證。
 - [x] 準備 Windows CI、註冊／解除註冊與 smoke-test 文件；證據：三架構狀態已分列，YAML syntax 與 PowerShell 7.5.0 Linux AST parsing 通過；沒有執行註冊腳本。
-  - 已取得推送 `narumi/feat/offline-zhuyin-ime` 與執行 GitHub Actions native checks 的授權；CI 結果另行記錄，不包含任何 IME 安裝／註冊／啟用授權。
+  - 已取得推送 `narumi/feat/offline-zhuyin-ime` 與執行 GitHub Actions native checks 的授權；不包含任何 IME 安裝／註冊／啟用授權。
+  - Windows 三架構 workflow 已啟用，x86／ARM64 native 結果待驗證；不以既有 x64 結果代替。
 
 ### P6 — Linux Fcitx5 adapter
 

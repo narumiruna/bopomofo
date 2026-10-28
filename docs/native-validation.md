@@ -55,7 +55,7 @@ Container 只建立暫存 build directory，不安裝或啟用 IME，不連接 d
 | Windows x64 / x86 / ARM64 source | 三個 MSVC targets 均通過 pinned Rust 1.92.0 `cargo check` 與 target Clippy。 | 這是本機 cross-check；x64 native build／load 的獨立 CI 證據見下節，x86／ARM64 runtime 尚未驗證。 |
 | Windows portable contracts | 在 macOS 執行的 16 tests 通過，含 physical scan codes、post-event modifiers、offsets、checksum、probe、stale tickets 與 dispatch gate。 | 不是 COM／TSF native runtime 證據。 |
 | Linux arm64 headless | 最終 source clean build、ABI／C++ contracts 4/4 及 C++ ASan／UBSan 4/4 通過；含 Shift reset、native remap、Sensitive 與八份 fixture。 | ASan／UBSan adapter test 230.79 s；Rust archive 為正常 release，未使用 sanitizer instrumentation；不證明 desktop 或 index-only UI 安全。 |
-| Native CI preparation | `.github/workflows/checks.yml` 與 Windows 多架構 template 已建立，3 份 YAML parse 通過。 | 已推送並觸發，首次 run 的失敗與重驗狀態見下節。 |
+| Native CI preparation | `.github/workflows/checks.yml` 與 `.github/workflows/windows.yml` 已啟用，3 份 YAML parse 通過。 | 已推送並觸發，首次 run 的失敗與重驗狀態見下節。 |
 | PowerShell source | 官方 PowerShell 7.5.0 Linux amd64 container 解析 4 份 `.ps1` 成功。 | 此項僅為 AST parsing；`Build-Test.ps1` 的 Windows runtime 證據另列於 CI，註冊／移除腳本仍未執行。 |
 | Documentation | 12 份 Markdown 的 whitespace／fences／local links 通過；8 份 Mermaid diagrams 已用 Mermaid CLI 11.12.0 + local headless Chrome render。 | Renderer outputs 在 ignored `target/diagram-check/`，不納入 Git。 |
 
@@ -79,6 +79,8 @@ Container 只建立暫存 build directory，不安裝或啟用 IME，不連接 d
 - macOS 14.8.9 arm64，runner image `macos-14-arm64/20260831.0302.1`：workspace 80 tests、bundle、125 pure assertions、96 actual C ABI assertions 與 16 dry-run cases 通過。
 - Ubuntu 24.04：workspace 80 tests 通過；x64 與 arm64 Fcitx5 jobs 各完成 build／ABI 與 4/4 headless CTests。
 - 此 run 沒有 installed IME、真實 document edit session、UI-less app、native candidate rendering 或 desktop 相容性證據；這些 gate 保持 open。
+
+另啟用 Windows x64／x86／ARM64 native matrix。x86 在 x64 runner 的 WOW64 process 執行，ARM64 使用 `windows-11-arm`；新矩陣結果尚待驗證，不沿用 x64 結果。
 
 ## Artifact identity
 
