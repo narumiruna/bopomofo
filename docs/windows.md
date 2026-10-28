@@ -119,7 +119,7 @@ Run one target at a time from the repository root:
 ./platforms/windows/scripts/Build-Test.ps1 -Target aarch64-pc-windows-msvc
 ```
 
-The script checks formatting, runs target Clippy, builds a debug DLL, runs non-registration tests, and builds a release DLL. It validates and copies the fixture and its digest beside `target/<target>/release/bopomofo_tsf.dll`. It writes only repository build outputs. It does not install tools, register the DLL, change input settings, or publish artifacts.
+The script checks formatting, runs target Clippy, and builds debug and release DLLs. It runs the unit and DLL loader tests in each profile. It records SHA-256 hashes for both DLLs and the development lexicon. It validates and copies the fixture and its digest beside `target/<target>/release/bopomofo_tsf.dll`. It writes only repository build outputs. It does not install tools, register the DLL, change input settings, or publish artifacts.
 
 `.github/workflows/windows.yml` runs the target-specific native checks for x64 and x86 on `windows-2022`, and ARM64 on `windows-11-arm`. These standard runner labels are available for this public repository. All three targets passed build and non-registration tests. Logs show that each target's test executables ran. `.github/workflows/checks.yml` retains the Windows host build and workspace tests. Neither workflow registers, enables, or publishes the IME. Native build/test CI does not replace desktop smoke tests.
 
