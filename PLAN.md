@@ -183,7 +183,7 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
 
 - [ ] 實作並驗證 Rust TSF adapter 的 COM lifecycle、key sink、edit session 與 composition。
   - 原始碼、native build／test scripts、16 portable tests 與 x64／x86／ARM64 type check／Clippy 已通過。
-  - 真正 DLL link、load、COM 與 Windows-only tests 尚未執行；native gate 保持 open。
+  - 首次 CI 的 19 Windows unit tests 已通過；DLL loader test 失敗於 `0x8007007E`。已補上 workflow 的 host DLL build 前置步驟，待重驗；未將此失敗標為通過。
 - [ ] 驗證 Windows native candidate presentation 與 UTF-16 conversion。
   - UI-element interfaces、native LISTBOX fallback、portable Unicode／probe／lifecycle tests 與三架構 cross-check 已完成。
   - Native candidate、edit-session ordering 與 UI-less host 行為仍需 Windows runner／desktop 證據。

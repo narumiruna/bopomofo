@@ -8,7 +8,7 @@ Rust tests、platform build、headless contract tests 與 desktop checks 是不�
 
 本輪本機驗證日期為 2026-10-28 UTC。實作起始 Git revision 為 `14f08344f510179d64060fef603610ab238bc719`，內容以下列 source snapshot 識別。已取得推送 source 與執行 native CI 的授權，但不包含 IME 安裝、註冊、啟用或 artifact 發布。Artifact hashes 識別實際建置，不是簽章信任或產品認證。
 
-本次 source/build/fixture snapshot 包含 87 個路徑，SHA-256 為 `6de256861cf932740b1f0874e7b14133aae70737541c6823f05709f07145b2b8`。計算法為：以 `git ls-files --cached --others --exclude-standard -z` 列出 `.gitattributes`、Cargo manifests／lock、toolchain、`crates/`、`platforms/`、`fixtures/`、`.github/`，依路徑排序後，逐筆串接 `path + NUL + contents + NUL` 再取 SHA-256。
+首次本機驗證與 CI commit `c6d2e2c` 的 source/build/fixture snapshot 包含 87 個路徑，SHA-256 為 `6de256861cf932740b1f0874e7b14133aae70737541c6823f05709f07145b2b8`。計算法為：以 `git ls-files --cached --others --exclude-standard -z` 列出 `.gitattributes`、Cargo manifests／lock、toolchain、`crates/`、`platforms/`、`fixtures/`、`.github/`，依路徑排序後，逐筆串接 `path + NUL + contents + NUL` 再取 SHA-256。
 
 ## Reproducible checks
 
@@ -55,9 +55,23 @@ Container 只建立暫存 build directory，不安裝或啟用 IME，不連接 d
 | Windows x64 / x86 / ARM64 source | 三個 MSVC targets 均通過 pinned Rust 1.92.0 `cargo check` 與 target Clippy。 | Windows-only tests 只有 type check；未 link／執行 DLL。 |
 | Windows portable contracts | 在 macOS 執行的 16 tests 通過，含 physical scan codes、post-event modifiers、offsets、checksum、probe、stale tickets 與 dispatch gate。 | 不是 COM／TSF native runtime 證據。 |
 | Linux arm64 headless | 最終 source clean build、ABI／C++ contracts 4/4 及 C++ ASan／UBSan 4/4 通過；含 Shift reset、native remap、Sensitive 與八份 fixture。 | ASan／UBSan adapter test 230.79 s；Rust archive 為正常 release，未使用 sanitizer instrumentation；不證明 desktop 或 index-only UI 安全。 |
-| Native CI preparation | `.github/workflows/checks.yml` 與 Windows 多架構 template 已建立，3 份 YAML parse 通過。 | 已取得 source push／Actions 授權，待本次推送觸發；結果另行記錄。 |
+| Native CI preparation | `.github/workflows/checks.yml` 與 Windows 多架構 template 已建立，3 份 YAML parse 通過。 | 已推送並觸發，首次 run 的失敗與重驗狀態見下節。 |
 | PowerShell source | 官方 PowerShell 7.5.0 Linux amd64 container 解析 4 份 `.ps1` 成功。 | 僅呼叫 AST parser，沒有執行腳本，不是 Windows runtime 證據。 |
 | Documentation | 12 份 Markdown 的 whitespace／fences／local links 通過；8 份 Mermaid diagrams 已用 Mermaid CLI 11.12.0 + local headless Chrome render。 | Renderer outputs 在 ignored `target/diagram-check/`，不納入 Git。 |
+
+## GitHub Actions
+
+首次 [run 40651450673](https://github.com/narumiruna/bopomofo/actions/runs/40651450673) 對應 commit `c6d2e2cd330643832731221d8f45170cff8cb88e`：
+
+| Job | Result | Scope |
+| --- | --- | --- |
+| `rust (ubuntu-24.04)` | Passed | Workspace format、Clippy 與 tests。 |
+| `rust (macos-14)` | Passed | Workspace checks、bundle 與 standalone adapter／C ABI contracts。 |
+| `fcitx5 (ubuntu-24.04)` | Passed | x64 build／ABI／4 headless CTests，沒有 desktop session。 |
+| `fcitx5 (ubuntu-24.04-arm)` | Passed | arm64 build／ABI／4 headless CTests，沒有 desktop session。 |
+| `rust (windows-2022)` | Failed | 19 Windows unit tests 通過；DLL loader test 回傳 `0x8007007E`。Workflow 未先 build 預期的 host DLL，後續 target-specific script 未執行。 |
+
+已加入 Windows host `cargo build -p ime-windows --locked` 前置步驟，並讓 loader test 先檢查 DLL 是否存在。這是待重驗的修正，不將首次失敗標為通過；若 build 後仍失敗，須另查 DLL dependencies 或 runtime 問題。
 
 ## Artifact identity
 

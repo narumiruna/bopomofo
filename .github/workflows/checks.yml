@@ -22,6 +22,9 @@ jobs:
         run: rustup toolchain install 1.92.0 --profile minimal --component rustfmt --component clippy
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Build host Windows DLL for loader tests
+        if: runner.os == 'Windows'
+        run: cargo build -p ime-windows --locked
       - run: cargo test --workspace --all-targets --locked
       - name: macOS bundle and adapter contracts
         if: runner.os == 'macOS'

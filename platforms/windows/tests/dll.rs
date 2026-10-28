@@ -1,4 +1,4 @@
-//! Run after `cargo build -p ime-windows --target <native-target>`.
+//! Build the DLL first in the same profile and target directory as this test.
 //! This loads the DLL without installing or registering the text service.
 #![cfg(windows)]
 use std::ffi::c_void;
@@ -23,6 +23,10 @@ fn dll_exports_factory_and_unload_without_registration() {
     let executable = std::env::current_exe().unwrap();
     let directory = executable.parent().unwrap().parent().unwrap();
     let path = directory.join("bopomofo_tsf.dll");
+    assert!(
+        path.is_file(),
+        "Build ime-windows before running DLL loader tests"
+    );
     let path: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
     unsafe {
         let library = Library(
