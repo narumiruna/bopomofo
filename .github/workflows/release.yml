@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-tag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust tools
+        run: rustup toolchain install 1.92.0 --profile minimal
+      - name: Validate tag and workspace versions
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_REF_TYPE" != tag ]]; then
+            echo '::error::Run Release on an existing version tag, not a branch.'
+            exit 1
+          fi
+          version=$(cargo metadata --locked --no-deps --format-version 1 | jq -er '
+            [.packages[].version] | unique |
+            if length == 1 then .[0] else error("workspace package versions differ") end
+          ')
+          if [[ "$RELEASE_TAG" != "v$version" ]]; then
+            echo "::error::Release tag must match the workspace version: v$version"
+            exit 1
+          fi
+
+  checks:
+    needs: validate-tag
+    uses: ./.github/workflows/checks.yml
+
+  windows:
+    needs: validate-tag
+    uses: ./.github/workflows/windows.yml
+
+  draft:
+    needs: [checks, windows]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Create source-only draft prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          commit=$(git rev-parse HEAD)
+          remote_commit=$(gh api "repos/$GH_REPO/commits/$RELEASE_TAG" --jq .sha)
+          if [[ "$remote_commit" != "$commit" ]]; then
+            echo '::error::The remote release tag no longer matches the checked commit.'
+            exit 1
+          fi
+          existing_tags=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '.[].tag_name')
+          if grep -Fxq -- "$RELEASE_TAG" <<< "$existing_tags"; then
+            echo '::error::A release already exists for this tag. Review it instead of replacing it.'
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" \
+            --repo "$GH_REPO" \
+            --verify-tag \
+            --draft \
+            --prerelease \
+            --latest=false \
+            --title "bopomofo $RELEASE_TAG" \
+            --generate-notes \
+            --notes "Source-only development prerelease. No native IME binaries are included. Native desktop validation, production lexicon, and representative performance gates remain open. See the [validation register](https://github.com/$GH_REPO/blob/$commit/docs/native-validation.md)."
+
+# Draft creation is not publication approval. Do not attach native binaries,
+# install/register/enable an IME, or infer OS/application support from CI.
