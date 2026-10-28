@@ -183,10 +183,11 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
 
 - [ ] 實作並驗證 Rust TSF adapter 的 COM lifecycle、key sink、edit session 與 composition。
   - 原始碼、native build／test scripts、16 portable tests 與 x64／x86／ARM64 type check／Clippy 已通過。
-  - 首次 CI 的 19 Windows unit tests 已通過；DLL loader test 失敗於 `0x8007007E`。已補上 workflow 的 host DLL build 前置步驟，待重驗；未將此失敗標為通過。
+  - 首次 CI 的 DLL loader test 因 build 前置步驟缺失而失敗；修正後 `f65a705`／run `40652597435` 的 5 jobs 全部通過。
+  - Windows x64 debug／release DLL、19 unit tests、1 loader test 已通過；實際 document edit session／installed TSF 行為仍需獨立驗證。
 - [ ] 驗證 Windows native candidate presentation 與 UTF-16 conversion。
   - UI-element interfaces、native LISTBOX fallback、portable Unicode／probe／lifecycle tests 與三架構 cross-check 已完成。
-  - Native candidate、edit-session ordering 與 UI-less host 行為仍需 Windows runner／desktop 證據。
+  - Candidate COM methods 與 portable ordering tests 已通過；實際 candidate rendering、document edit sessions 與 UI-less app 行為仍未驗證。
 - [x] 準備 Windows CI、註冊／解除註冊與 smoke-test 文件；證據：三架構狀態已分列，YAML syntax 與 PowerShell 7.5.0 Linux AST parsing 通過；沒有執行註冊腳本。
   - 已取得推送 `narumi/feat/offline-zhuyin-ime` 與執行 GitHub Actions native checks 的授權；CI 結果另行記錄，不包含任何 IME 安裝／註冊／啟用授權。
 
@@ -215,7 +216,7 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
 
 ## Validation Commands
 
-建立 workspace 後，所有可在目前 host 編譯的 Rust target 必須通過：
+所有可在目前 host 編譯的 Rust target 必須通過下列檢查。Windows 先執行 `cargo build -p ime-windows --locked`，建立 DLL loader test 的 host DLL：
 
 ```bash
 cargo fmt --all -- --check

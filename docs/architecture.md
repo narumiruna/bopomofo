@@ -174,7 +174,7 @@ flowchart LR
     Loader --> Index
 ```
 
-- 來源紀錄保存於待建立的 `data/SOURCES.md`，每份來源必須有 URL、版本、checksum、授權、署名及允許的轉換／散布範圍。
+- 來源紀錄保存於 `data/SOURCES.md`，每份來源必須有 URL、版本、checksum、授權、署名及允許的轉換／散布範圍。
 - Importer 必須檢出非法音節、缺失欄位、重複紀錄與無效頻率，並保留詞組的明確讀音對應。
 - 同一份已固定版本的來源，必須重建出相同排序與 checksum 的產物。
 - 初期使用有版本的文字格式，於初始化時建立 in-memory index；沒有量測證據前不加入 binary format 或 mmap。
@@ -207,12 +207,12 @@ flowchart LR
 
 平台特定依賴必須使用 target gating，讓 core tests 不需要其他 OS 的 SDK。Native 結果日後保存於 `docs/native-validation.md`，每個組合分別標示 passed、failed 或 unverified。
 
-初始效能目標是在最多 64 音節的代表性 replay corpus 上，core key handling p95 < 5 ms，不包含平台 UI rendering。目前未量測。
+初始效能目標是在最多 64 音節的代表性 replay corpus 上，core key handling p95 < 5 ms，不包含平台 UI rendering。目前只量測自製 fixture，代表性效能 gate 尚未驗證。
 
 ## Open decisions and prerequisites
 
 - 平台支援範圍：最低 OS 版本、CPU 架構與必要的應用程式組合尚未確認，不預先宣稱支援。
 - 詞庫來源與詞頻：須完成來源調查與授權核對，才可決定正式匯入與散布的資料。
-- Native 驗證環境：macOS bundle 與 Linux headless build 已可在目前環境檢查。Windows native runner 與各平台 desktop matrix 仍須取得獨立證據。
+- Native 驗證環境：macOS bundle 與 Linux headless build 已可在目前環境檢查。Windows x64 CI 已通過 build／load／非註冊 tests；各平台 installed desktop matrix 仍須獨立證據。
 
 先以自製 fixture 建立 core 與 replay，再進行最小 macOS integration spike，之後完成 parser、decoder 與 macOS MVP，再接 Windows／Linux。開發順序不代表各平台已通過驗收或取得發布授權。

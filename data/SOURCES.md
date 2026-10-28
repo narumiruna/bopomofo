@@ -22,6 +22,7 @@
 | `cc-cedict-snapshot` | Traditional/Simplified forms、phrase Pinyin、English definitions | 資料 header 與 publisher 均指定 CC BY-SA 4.0 | **Candidate，未選用**；需處理 ShareAlike、讀音品質與 snapshot 保存，沒有 phrase frequency。 |
 | `mcbopomofo-data` | 直接的 Zhuyin 字詞 mapping 與 phrase occurrence counts | Root MIT 與 data 的上游 provenance 必須分開查核 | **Blocked approval**；libtabe notices 與 frequency provenance 尚未確認完整。 |
 | `moe-revised` | Traditional Chinese 字詞、Zhuyin、definitions | 官方指定 CC BY-ND 3.0 Taiwan；未取得本專案轉換所需的另行許可 | **Blocked for transformed lexicon**；不匯入、不假設 ND 允許 extraction。 |
+| `naer-coct` | 官方提供通用詞頻表下載連結 | 已查閱頁面未提供適用於該檔的轉換／散布授權證據 | **Rights unverified**；未下載、匯入或散布詞頻表。 |
 
 ## Self-authored fixtures
 
@@ -184,6 +185,15 @@ README 記載 counts 由 1998 年收集的 Taiwan web pages 抽樣 1,200,000 頁
 - LICENSE.txt：`8990c551671a51765c4dfe9428f3e1d58dc327f49aca346a32d28cc0fcc7aa88`。
 - NOTICE.md：`d9b104dafe63886af55e7cea7484824e32e12d4e1f57f319923dd643b36d6b15`。
 - 不以 code license 推論 data 的完整權利。
+
+### National Academy for Educational Research COCT
+
+2026-10-28 另查核 [官方下載頁](https://coct.naer.edu.tw/page.jsp?ID=4)、[首頁](https://coct.naer.edu.tw/) 與 [使用說明](https://coct.naer.edu.tw/page.jsp?ID=6)。下載頁提供檔名為 `通用詞頻表 - 定稿1141208.xlsx`／`.ods` 的連結，可作為 Taiwan phrase frequency 的後續候選。
+
+- 已查閱頁面顯示 National Academy for Educational Research copyright，但未找到適用於該檔的 extraction、轉換、合併與 redistribution grant。
+- 不因 publisher 是政府機關或檔案可公開下載，就推論適用 Open Government Data License。
+- 這不證明 publisher 一定禁止再利用；仍需適用 license 或 data-specific rights-holder confirmation。未下載 spreadsheet，沒有 dataset checksum，也未將檔名日期當成已驗證的資料版本。
+- 本地下載頁 HTML SHA-256：`201bbbbe290ba26ed00880f191cb69c858abca6834b68e5046cd64b7d95f4f15`；使用說明 HTML：`9c7f9f4fffabc715c16c9b583b90e008621619205c61d27e9f427ffde1e5673d`。這些只識別查核頁面，不是 publisher signature 或 data-file checksum。
 
 ## Import and release gate
 

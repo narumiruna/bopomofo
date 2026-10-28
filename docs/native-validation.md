@@ -12,7 +12,7 @@ Rust tests、platform build、headless contract tests 與 desktop checks 是不�
 
 ## Reproducible checks
 
-在 repository root 執行：
+在 repository root 執行。Windows clean checkout 先執行 `cargo build -p ime-windows --locked`；DLL loader test 需要同一 target／profile 的 DLL：
 
 ```bash
 cargo fmt --all -- --check
@@ -52,11 +52,11 @@ Container 只建立暫存 build directory，不安裝或啟用 IME，不連接 d
 | Rust format / Clippy | 本機 workspace format、Clippy warnings-as-errors 已通過。 | 最終 source 變更後仍須重跑；以 command exit status 為準。 |
 | macOS arm64 bundle | CLT Swift 6.4 + Rust 1.92.0，plist／ABI／SHA-256／ad-hoc signature checks 通過。 | Deployment target 13.0 不是已驗證最低 OS。 |
 | macOS standalone contracts | 125 pure adapter assertions、96 actual C ABI assertions、16 management dry-run cases 通過。 | 不建立 IMKServer session，不啟動輸入法，不執行 `--apply`。 |
-| Windows x64 / x86 / ARM64 source | 三個 MSVC targets 均通過 pinned Rust 1.92.0 `cargo check` 與 target Clippy。 | Windows-only tests 只有 type check；未 link／執行 DLL。 |
+| Windows x64 / x86 / ARM64 source | 三個 MSVC targets 均通過 pinned Rust 1.92.0 `cargo check` 與 target Clippy。 | 這是本機 cross-check；x64 native build／load 的獨立 CI 證據見下節，x86／ARM64 runtime 尚未驗證。 |
 | Windows portable contracts | 在 macOS 執行的 16 tests 通過，含 physical scan codes、post-event modifiers、offsets、checksum、probe、stale tickets 與 dispatch gate。 | 不是 COM／TSF native runtime 證據。 |
 | Linux arm64 headless | 最終 source clean build、ABI／C++ contracts 4/4 及 C++ ASan／UBSan 4/4 通過；含 Shift reset、native remap、Sensitive 與八份 fixture。 | ASan／UBSan adapter test 230.79 s；Rust archive 為正常 release，未使用 sanitizer instrumentation；不證明 desktop 或 index-only UI 安全。 |
 | Native CI preparation | `.github/workflows/checks.yml` 與 Windows 多架構 template 已建立，3 份 YAML parse 通過。 | 已推送並觸發，首次 run 的失敗與重驗狀態見下節。 |
-| PowerShell source | 官方 PowerShell 7.5.0 Linux amd64 container 解析 4 份 `.ps1` 成功。 | 僅呼叫 AST parser，沒有執行腳本，不是 Windows runtime 證據。 |
+| PowerShell source | 官方 PowerShell 7.5.0 Linux amd64 container 解析 4 份 `.ps1` 成功。 | 此項僅為 AST parsing；`Build-Test.ps1` 的 Windows runtime 證據另列於 CI，註冊／移除腳本仍未執行。 |
 | Documentation | 12 份 Markdown 的 whitespace／fences／local links 通過；8 份 Mermaid diagrams 已用 Mermaid CLI 11.12.0 + local headless Chrome render。 | Renderer outputs 在 ignored `target/diagram-check/`，不納入 Git。 |
 
 ## GitHub Actions
@@ -71,7 +71,14 @@ Container 只建立暫存 build directory，不安裝或啟用 IME，不連接 d
 | `fcitx5 (ubuntu-24.04-arm)` | Passed | arm64 build／ABI／4 headless CTests，沒有 desktop session。 |
 | `rust (windows-2022)` | Failed | 19 Windows unit tests 通過；DLL loader test 回傳 `0x8007007E`。Workflow 未先 build 預期的 host DLL，後續 target-specific script 未執行。 |
 
-已加入 Windows host `cargo build -p ime-windows --locked` 前置步驟，並讓 loader test 先檢查 DLL 是否存在。這是待重驗的修正，不將首次失敗標為通過；若 build 後仍失敗，須另查 DLL dependencies 或 runtime 問題。
+修正加入 Windows host `cargo build -p ime-windows --locked` 前置步驟，並讓 loader test 先檢查 DLL 是否存在。
+
+重驗 [run 40652597435](https://github.com/narumiruna/bopomofo/actions/runs/40652597435) 對應 commit `f65a705ea598fc20368851f8fe63096408df6a2d`，**5/5 jobs 全部通過**。此版本的 87-path source snapshot SHA-256 為 `50644afad0c8a97c14edd19c02e2c9cbbf236c8eea248b25a7581611ff4d180c`，計算法同上。
+
+- Windows Server 2022 x64：workspace 84 tests 通過。Target-specific script 再次通過 19 unit tests 與 1 DLL loader test，完成 debug／release DLL build。Loader 驗證四個 exports、factory／service 建立及 unload count；沒有註冊或啟用 TSF。
+- macOS 14.8.9 arm64，runner image `macos-14-arm64/20260831.0302.1`：workspace 80 tests、bundle、125 pure assertions、96 actual C ABI assertions 與 16 dry-run cases 通過。
+- Ubuntu 24.04：workspace 80 tests 通過；x64 與 arm64 Fcitx5 jobs 各完成 build／ABI 與 4/4 headless CTests。
+- 此 run 沒有 installed IME、真實 document edit session、UI-less app、native candidate rendering 或 desktop 相容性證據；這些 gate 保持 open。
 
 ## Artifact identity
 
@@ -91,7 +98,7 @@ C ABI header
 SHA-256 6a2480cbae7000618cba390a3932998595570a90f1a5729f4baab3bb93ff3167
 ```
 
-每次重建後，以 `platforms/macos/build/build-evidence.txt` 的新 hash 核對本節。Build 輸出與 binary 不納入 Git。Windows native DLL 尚未產生，不提供虛構 hash。
+每次重建後，以 `platforms/macos/build/build-evidence.txt` 的新 hash 核對本節。Build 輸出與 binary 不納入 Git。Windows x64 debug／release DLL 已在上述 CI 產生並驗證；build ID 為 commit／run／job `f65a705`／`40652597435`／`122695963038`。Workflow 未輸出 Windows DLL hash，未下載或發布 binary，不提供虛構 hash。
 
 Linux 最終 clean container build：
 
@@ -179,7 +186,7 @@ sequenceDiagram
 
 | Responsible role | Prerequisite / required action | 尚未通過的 gate |
 | --- | --- | --- |
-| CI owner | 授權推送 source／workflow，提供 Windows SDK／MSVC native runner，執行 native build 與非註冊 tests。 | Windows link、DLL load、COM execution 與 Windows PowerShell script runtime 未驗證；Linux AST parsing 不取代這些檢查。 |
+| Windows tester / CI owner | x64 build／load／非註冊 tests 已通過；提供 x86／ARM64 runtime，以及已授權的 installed TSF／app 環境。 | x86／ARM64 native execution、registration、activation、實際 document edit session 與 desktop matrix 仍未驗證。 |
 | macOS tester | 授權使用 scoped 管理腳本安裝／啟用 bundle，依 macOS guide 操作與保存結果。 | 所有 installed native app／display checks 未驗證。 |
 | Linux tester / framework owner | 提供 X11／Wayland session，驗證各 frontend，並解決或證明 candidate request 的 generation／ordering 契約。 | Desktop matrix 與 stale rendered-click 正確性未通過。 |
 | Data / release owner | 提供權利完整、可轉換與散布的 phrase／frequency data、notices 與代表性 corpus。 | 正式詞庫、代表性效能及資料散布 gate 未通過；詳見 `data/SOURCES.md`。 |

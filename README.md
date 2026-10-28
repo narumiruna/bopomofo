@@ -15,7 +15,7 @@
 
 ## Core development
 
-需要 Rust 1.92.0，版本由 `rust-toolchain.toml` 固定。
+需要 Rust 1.92.0，版本由 `rust-toolchain.toml` 固定。Windows 執行下列 workspace tests 前，先執行 `cargo build -p ime-windows --locked`，建立 DLL loader test 所需的 host DLL。
 
 ```bash
 cargo fmt --all -- --check

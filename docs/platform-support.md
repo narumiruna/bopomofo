@@ -8,16 +8,16 @@
 
 最新 command、artifact 與限制以 [native-validation.md](native-validation.md) 為準。以下 SDK 調查細節不取代 native 驗證。
 
-| Target | 本次 host 的 build 前提 | Platform build / native 狀態與缺少條件 |
+| Target | 已確認的 build 前提 | Platform build / native 狀態與缺少條件 |
 | --- | --- | --- |
 | Core / C ABI，`aarch64-apple-darwin` | **Available**：Rust/Cargo 1.92.0 | Core／FFI tests 已執行；SDK probe 仍不能代替這些 tests。 |
 | macOS arm64 / InputMethodKit | **Available**：Swift、Clang、AppKit、InputMethodKit headers/link stubs | SDK typecheck、bundle build 與 standalone adapter tests 通過；native checks 仍需安裝／啟用授權及 desktop 操作。 |
 | macOS x86_64 / InputMethodKit | **Blocked**：未安裝 `x86_64-apple-darwin` Rust target，未確認相應 runner | 尚無 x86_64 build 或 native 結果；arm64 結果不能推論到 Intel Mac。 |
-| Windows x64，`x86_64-pc-windows-msvc` | Rust cross-check **Available**；Windows SDK／MSVC native environment **Blocked** | 缺少已確認的 Windows native runner、build 與 TSF desktop 驗證。 |
+| Windows x64，`x86_64-pc-windows-msvc` | Cross-check 與 Windows Server 2022 native CI **Available** | Debug／release DLL、19 unit tests 與 1 loader test 通過；installed TSF／desktop 未驗證。 |
 | Windows x86，`i686-pc-windows-msvc` | Rust cross-check **Available**；native 32-bit DLL／toolchain **Blocked** | x64 build 不代表 32-bit application 可載入或正確輸入。 |
 | Windows ARM64，`aarch64-pc-windows-msvc` | Rust cross-check **Available**；native ARM64 build／runtime **Blocked** | 未驗證 native ARM64 或 emulated application 組合。 |
 | Linux arm64 / Fcitx5 | Docker headless environment **Available**；macOS host 不直接安裝 Fcitx5 SDK | 已建立 Ubuntu 24.04／Fcitx5 5.1.7 headless environment；desktop session 與已知 integration gaps 仍未通過。 |
-| Linux x86_64 / Fcitx5 | **Blocked**：未確認相應 build runner 或 desktop | Container cross-build 或 emulation 不能代替相應 desktop 結果。 |
+| Linux x86_64 / Fcitx5 | Ubuntu 24.04 native headless CI **Available** | Build／ABI／4 CTests 通過；沒有 desktop session，不推論到 GTK／Qt／browser／Electron。 |
 
 `Available` 只表示指定的 development prerequisites 可使用，不表示產品支援。後續實作的測試結果須另附 command、revision、exit status 與 artifact 識別；不能由本表預先標為 passed。
 
@@ -98,7 +98,7 @@ $SDK/System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.
   - 採用本專案獨立 identifier，不覆寫其他 input source。
 - 目前 build script/Info.plist 設定的 deployment target **13.0** 只是 build 設定，不是已驗證的最低 OS。SDK API 歷史 availability 同樣不能作為 native 支援證據。
 
-以下 repository build commands **未在本次文件調查執行**。路徑及輸出供後續實作驗證使用；build 成功仍不代表 native IME 通過：
+以下是 repository 的 build 重播指令。Bundle 與 standalone contracts 已在本機及 macOS arm64 CI 通過，仍不代表 installed native IME 通過：
 
 ```bash
 cargo build --release -p ime-ffi
@@ -134,7 +134,7 @@ Microsoft API 頁面的歷史 minimum-client metadata 不代表本專案支援�
 
 需要 Windows native runner、[Windows SDK](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/)、MSVC C++ build tools/linker、相應 target/import libraries，以及 Rust MSVC target。每一 architecture 分別建置 DLL；in-process COM DLL 必須符合 application architecture。
 
-以下是 **Windows native developer shell 的待驗證命令**，不是目前 macOS host 已執行的結果：
+以下是 Windows native developer shell 指令，不是 macOS 執行結果。x64 native CI 已通過；x86／ARM64 仍須獨立執行：
 
 ```powershell
 cargo build --release -p ime-windows --target x86_64-pc-windows-msvc
@@ -172,7 +172,7 @@ Get-FileHash target/x86_64-pc-windows-msvc/release/bopomofo_tsf.dll -Algorithm S
 - Header 與 Rust library 須來自一致 ABI revision；C++ 取得的 Rust buffers 只用配對的 Rust free API 釋放。
 - 官方 addon layout 是 `lib/fcitx5/<addon>.so`、`share/fcitx5/addon/<addon>.conf` 與 `share/fcitx5/inputmethod/<inputmethod>.conf`。路徑須由實際 Fcitx install prefix/libdir 決定；此處不寫入任何 prefix。
 
-以下是 **P6 build command templates，未在本次調查執行**。`platforms/linux/fcitx5/CMakeLists.txt` 與 tests 須由實作階段提供並核對，不能把這組命令當成已通過紀錄：
+Rust／C++ build 流程已在 Linux x64／arm64 headless CI 通過。以下指令在 `target/fcitx5` 建置，不安裝或啟用 addon：
 
 ```bash
 pkg-config --modversion Fcitx5Core
@@ -200,4 +200,4 @@ Headless container 可以提供 build/link 或 C ABI test 證據，但不能證�
 
 每筆 native 結果至少記錄 OS/build、CPU architecture、app/toolkit/compositor version、repository revision、artifact SHA-256、lexicon revision、測試步驟、預期與實際結果，以及 `passed`、`failed` 或 `unverified`。不得記錄使用者實際輸入內容；驗證只使用固定的自製 fixture。
 
-仍受阻的交接：Windows native runner／SDK、Linux X11／Wayland desktop sessions、已授權的 IME 安裝與 desktop 操作，以及所有平台的 native application matrix。Linux headless development build 不再是缺少環境的項目。最低 OS、CPU/app 支援聲明、signing/notarization 與 release approval 都尚未完成。
+仍受阻的交接：Windows x86／ARM64 runtime、各平台 installed IME／native application matrix、Linux X11／Wayland desktop sessions，以及安裝與 desktop 操作授權。Linux headless development build 不再是缺少環境的項目。最低 OS、CPU/app 支援聲明、signing/notarization 與 release approval 都尚未完成。
