@@ -96,7 +96,9 @@ Commit `be12f4804683a270932c484e5d0fce6dad304b26` fixes candidate Abort key bala
 
 Commit `64b6b5a8678660ac3b1ee2754b55bc17d08a68d0` adds release-profile tests and DLL hash logging. [Common PR CI 40681626779](https://github.com/narumiruna/bopomofo/actions/runs/40681626779) passed 5/5 jobs. [Windows PR CI 40681626909](https://github.com/narumiruna/bopomofo/actions/runs/40681626909) passed 3/3 jobs. Each Windows target ran 25 unit tests and one DLL loader test **in each debug and release profile**. Its 89-path source snapshot SHA-256 is `15576e969ebb7d4b9e087e55e9306350f236b92a0ec829a07861f5cbd423b9c0`.
 
-The six new Windows tests use COM mocks. They cover dynamic flags, balanced Abort, held keys, error recovery, and context-stack focus. They do not test an installed TIP, a live text store, or candidate rendering.
+Commit `6fe241f86dd72ccaa9c9e02828dc687fb986df35` fixes focus recovery after previous-context cleanup fails. It also rejects stale activation after native reentry. [Common CI 40684779243](https://github.com/narumiruna/bopomofo/actions/runs/40684779243) passed 5/5 jobs. [Windows CI 40684779204](https://github.com/narumiruna/bopomofo/actions/runs/40684779204) passed 3/3 jobs. Each target ran 27 unit tests and one DLL loader test in each profile. The 89-path source snapshot SHA-256 is `b4285a8b7bdc87110fee83c0dfbfb6d0aa8f34a6ac31e622c2252c339c064fbe`.
+
+The eight Windows regressions use COM mocks. They cover dynamic flags, balanced Abort, held keys, error recovery, and context-stack focus. They do not test an installed TIP, a live text store, or candidate rendering.
 
 The shared replay now has nine files and 358 records. Debug and release CLI replay checks passed. A Linux arm64 C++ ASan/UBSan follow-up passed the new 16-record `ui-abort.jsonl` case and the adapter contracts. It used `RelWithDebInfo`, `-fsanitize=address,undefined -fno-omit-frame-pointer`, leak detection, and halt-on-UB. The Rust archive was a normal release build. The contract executable SHA-256 was `851b4796dfc2ffc97062957bef1968ea4cb9730cb19ffe83e84df9c596520a60`. No desktop or stale rendered-click safety pass is claimed.
 
@@ -120,13 +122,13 @@ SHA-256 6a2480cbae7000618cba390a3932998595570a90f1a5729f4baab3bb93ff3167
 
 每次重建後，以 `platforms/macos/build/build-evidence.txt` 的新 hash 核對本節。Build 輸出與 binary 不納入 Git。
 
-Windows DLL hashes below identify the actual builds in run `40681626909` at commit `64b6b5a`. Both profiles passed loader tests. No Windows binary was downloaded, installed, or published.
+Windows DLL hashes below identify the actual builds in run `40684779204` at commit `6fe241f`. Both profiles passed loader tests. No Windows binary was downloaded, installed, or published.
 
 | Windows target | Debug DLL SHA-256 | Release DLL SHA-256 | Build job ID |
 | --- | --- | --- | --- |
-| `x86_64-pc-windows-msvc` | `87398e91d21f8d4470f84b9b41e6f06a2f2586c93e17cf506cc0cc01d7dca450` | `f8e534cf2160506902063308ec3d721b328b2661e8181e2be4796931f42d1c5f` | `122793498086` |
-| `i686-pc-windows-msvc` | `07e1787ac7678dccd21fa02a93afe5392fa4eb6a87df4d5536febdf3eb0bfd53` | `26ad12e96766596e2cd4eeb62efd29649a5904ce1f3555e121190187c1e5b811` | `122793497700` |
-| `aarch64-pc-windows-msvc` | `766dd11a49f458977d0faf91f55ac25b5abb0e686eaacb4ae46083a6f3bb8fe8` | `3a35abd35aa730277a99a10a7e859f0dab3f500fe3476f449b58014511413e3d` | `122793498087` |
+| `x86_64-pc-windows-msvc` | `281d6641b0e16e40ba7b7e0056589d12a70165d16472d6a836c4ec8b3f92cff3` | `4d71b12b459690e1896ef5f939fdc92aa3ac538e81bb1341c61009f64de10063` | `122804214089` |
+| `i686-pc-windows-msvc` | `003a04062a5200466bf3197ba2cedcb2057baff0f3d9ad6ca1c0baf2e92007cb` | `3fa72c811e6dfc758267c81972bd3eabcae10274353afd928bdcdfc36e8b75cf` | `122804213500` |
+| `aarch64-pc-windows-msvc` | `f40e3610711343e45b4ac9470983bb7b0e2368033983b7f27c006acd978efabf` | `3a954b8de51a1228f4aaf08184544ff24e605015935f1f43a19adceafad1518f` | `122804213832` |
 
 Each target used the self-authored lexicon SHA-256 `c54ced5e1e44472337f9bb5c5b8fe41e7a692a33dbfa8d360991704888f11dcd`. Hashes identify these builds, not a signature trust chain or product acceptance.
 

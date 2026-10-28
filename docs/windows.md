@@ -7,11 +7,11 @@ A successful cross-target `cargo check` does not validate a DLL link, TSF regist
 
 | Target | Compile/type check on macOS | Windows DLL build and tests | Registered TSF and apps |
 | --- | --- | --- | --- |
-| x64 (`x86_64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 25 unit tests and 1 loader test in each debug/release profile | Unverified |
-| x86 (`i686-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 25 unit tests and 1 loader test per profile under WOW64 | Unverified |
-| ARM64 (`aarch64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 25 unit tests and 1 loader test per profile on Windows 11 ARM64 | Unverified |
+| x64 (`x86_64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 27 unit tests and 1 loader test in each debug/release profile | Unverified |
+| x86 (`i686-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 27 unit tests and 1 loader test per profile under WOW64 | Unverified |
+| ARM64 (`aarch64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 27 unit tests and 1 loader test per profile on Windows 11 ARM64 | Unverified |
 
-The development host is macOS ARM64. GitHub Actions provided Windows Server 2022 x64/WOW64 and Windows 11 ARM64 runners. [Run 40681626909](https://github.com/narumiruna/bopomofo/actions/runs/40681626909) passed all three targets and both profiles at commit `64b6b5a8678660ac3b1ee2754b55bc17d08a68d0`. DLL hashes are recorded in [native-validation.md](native-validation.md). This does not validate a live document edit session or candidate window. No DLL was installed, registered, enabled, removed, or published. A Windows release is blocked until the applicable native checks pass. An x64 result must not be used as an x86 or ARM64 result.
+The development host is macOS ARM64. GitHub Actions provided Windows Server 2022 x64/WOW64 and Windows 11 ARM64 runners. [Run 40684779204](https://github.com/narumiruna/bopomofo/actions/runs/40684779204) passed all three targets and both profiles at commit `6fe241f86dd72ccaa9c9e02828dc687fb986df35`. DLL hashes are recorded in [native-validation.md](native-validation.md). This does not validate a live document edit session or candidate window. No DLL was installed, registered, enabled, removed, or published. A Windows release is blocked until the applicable native checks pass. An x64 result must not be used as an x86 or ARM64 result.
 
 ## Implementation
 
@@ -105,7 +105,7 @@ The portable suite covers non-BMP Han characters, emoji, combining sequences, in
 
 All three MSVC targets passed `cargo check` and target Clippy with warnings denied on macOS. The x86 check found and fixed pointer-width conversions around `GetWindowLongPtrW`/`SetWindowLongPtrW`; x64 checks alone did not detect that error.
 
-The Windows-only tests are type-checked by cross-target checks but are not executed on macOS. They test COM interfaces, non-agile identity, aggregation rejection, server locks, idempotent deactivation, candidate strings/pages, stale callbacks, and panic HRESULTs. They also test dynamic restrictions, balanced Abort, held keys, and context-stack focus with COM mocks. `tests/dll.rs` loads the real DLL and checks exports and unload behavior without registration. Build the DLL before running that test.
+The Windows-only tests are type-checked by cross-target checks but are not executed on macOS. They test COM interfaces, non-agile identity, aggregation rejection, server locks, idempotent deactivation, candidate strings/pages, stale callbacks, and panic HRESULTs. They also test dynamic restrictions, balanced Abort, held keys, context-stack focus, cleanup failure, and reentry with COM mocks. `tests/dll.rs` loads the real DLL and checks exports and unload behavior without registration. Build the DLL before running that test.
 
 ## Windows native build and CI preparation
 

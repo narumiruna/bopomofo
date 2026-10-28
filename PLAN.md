@@ -186,6 +186,7 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
   - 首次 CI 的 DLL loader test 因 build 前置步驟缺失而失敗；修正後 `f65a705`／run `40652597435` 的 5 jobs 全部通過。
   - `084517d` 的 common CI 5 jobs 與 Windows matrix 3 jobs 全通過。三架構各完成 debug／release build、19 unit tests 與 1 loader test；實際 document edit session／installed TSF 仍未驗證。
   - `be12f48` fixes three review defects and adds six COM regressions. At `64b6b5a`, Windows run `40681626909` passed 25 unit tests and one DLL loader test per profile, per target. Debug and release DLL hashes are retained in `docs/native-validation.md`.
+  - `6fe241f` fixes focus recovery when previous-context cleanup fails and guards reentrant focus changes. Run `40684779204` passed 27 unit tests and one loader test per profile, per target.
 - [ ] 驗證 Windows native candidate presentation 與 UTF-16 conversion。
   - UI-element interfaces、native LISTBOX fallback、portable Unicode／probe／lifecycle tests 與三架構 cross-check 已完成。
   - Candidate COM methods 與 portable ordering tests 已通過；實際 candidate rendering、document edit sessions 與 UI-less app 行為仍未驗證。
