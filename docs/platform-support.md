@@ -138,6 +138,7 @@ Microsoft API 頁面的歷史 minimum-client metadata 不代表本專案支援�
 
 ```powershell
 cargo build --release -p ime-windows --target x86_64-pc-windows-msvc
+cargo build -p ime-windows --target x86_64-pc-windows-msvc
 cargo test -p ime-windows --target x86_64-pc-windows-msvc
 dumpbin /headers target/x86_64-pc-windows-msvc/release/bopomofo_tsf.dll
 dumpbin /exports target/x86_64-pc-windows-msvc/release/bopomofo_tsf.dll

@@ -1,6 +1,6 @@
 use super::service::Context;
 use super::{GUID_CANDIDATES, ModuleGuard, com, window};
-use ime_core::{Event, KeyEvent, PAGE_SIZE, Snapshot};
+use ime_core::{PAGE_SIZE, Snapshot};
 use std::cell::Cell;
 use std::rc::{Rc, Weak};
 use windows::Win32::Foundation::*;
@@ -279,15 +279,7 @@ impl ITfCandidateListUIElementBehavior_Impl for CandidateElement_Impl {
         com(|| self.data.select(self.data.selected.get()))
     }
     fn Abort(&self) -> Result<()> {
-        com(|| {
-            let context = self.data.check()?;
-            context
-                .dispatch(Event::Key(KeyEvent {
-                    key: "escape".into(),
-                    ..KeyEvent::default()
-                }))
-                .map(|_| ())
-        })
+        com(|| self.data.check()?.abort_selection())
     }
 }
 

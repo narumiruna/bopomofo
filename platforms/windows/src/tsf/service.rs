@@ -1,6 +1,6 @@
 use super::{ModuleGuard, com, edit, key, module_path};
 use crate::session::{Session, Ticket, boundary};
-use ime_core::{Event, Lexicon, Output};
+use ime_core::{Event, KeyEvent, Lexicon, Output};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
@@ -120,6 +120,20 @@ impl Context {
         self.dispatch(Event::Select { generation, index })
             .map(|_| ())
     }
+
+    pub fn abort_selection(self: &Rc<Self>) -> Result<()> {
+        let pressed = self.dispatch(Event::Key(KeyEvent {
+            key: "escape".into(),
+            ..KeyEvent::default()
+        }));
+        // This UI action is a full logical tap, not a held physical key.
+        let released = self.dispatch(Event::Key(KeyEvent {
+            key: "escape".into(),
+            release: true,
+            ..KeyEvent::default()
+        }));
+        pressed.and(released).map(|_| ())
+    }
 }
 
 pub(super) fn identity<T: Interface>(object: &T) -> Result<usize> {
@@ -132,7 +146,7 @@ pub(super) fn allowed(context: &ITfContext) -> bool {
         let Ok(status) = context.GetStatus() else {
             return false;
         };
-        if status.dwStaticFlags & (TF_SD_READONLY | TF_SD_LOADING) != 0 {
+        if status.dwDynamicFlags & (TF_SD_READONLY | TF_SD_LOADING) != 0 {
             return false;
         }
         let Ok(manager) = context.cast::<ITfCompartmentMgr>() else {
@@ -225,6 +239,21 @@ impl Service_Impl {
             .as_ref()
             .filter(|state| state.focus == Some(id))
             .and_then(|state| state.contexts.get(&id).cloned()))
+    }
+
+    fn focused_top(&self) -> Result<Option<ITfContext>> {
+        let manager = self
+            .activation
+            .try_borrow()
+            .map_err(|_| Error::from(E_UNEXPECTED))?
+            .as_ref()
+            .map(|state| state.manager.clone());
+        Ok(manager.and_then(|manager| unsafe {
+            manager
+                .GetFocus()
+                .and_then(|document| document.GetTop())
+                .ok()
+        }))
     }
 
     fn focus(&self, native: Option<ITfContext>) -> Result<()> {
@@ -427,17 +456,7 @@ impl ITfKeyEventSink_Impl for Service_Impl {
             if !foreground.as_bool() {
                 return self.focus(None);
             }
-            let manager = self
-                .activation
-                .borrow()
-                .as_ref()
-                .map(|state| state.manager.clone());
-            self.focus(manager.and_then(|manager| unsafe {
-                manager
-                    .GetFocus()
-                    .and_then(|document| document.GetTop())
-                    .ok()
-            }))
+            self.focus(self.focused_top()?)
         })
     }
     fn OnTestKeyDown(&self, context: Ref<ITfContext>, w: WPARAM, l: LPARAM) -> Result<BOOL> {
@@ -493,14 +512,7 @@ impl ITfThreadMgrEventSink_Impl for Service_Impl {
             let Some(context) = context.as_ref() else {
                 return Ok(());
             };
-            let manager = self
-                .activation
-                .borrow()
-                .as_ref()
-                .map(|state| state.manager.clone());
-            let focused = manager.and_then(|manager| unsafe {
-                manager.GetFocus().and_then(|doc| doc.GetTop()).ok()
-            });
+            let focused = self.focused_top()?;
             if focused.as_ref().map(identity).transpose()? == Some(identity(context)?) {
                 self.focus(Some(context.clone()))?;
             }
@@ -509,11 +521,18 @@ impl ITfThreadMgrEventSink_Impl for Service_Impl {
     }
     fn OnPopContext(&self, context: Ref<ITfContext>) -> Result<()> {
         self.guarded(|| {
-            if let Some(context) = context.as_ref() {
-                self.remove(context)
-            } else {
-                Ok(())
-            }
+            let Some(context) = context.as_ref() else {
+                return Ok(());
+            };
+            let removed = self.remove(context);
+            // Pop need not change document focus. Restore its new top even if
+            // cleanup of the removed context failed.
+            let focused = self.focused_top().and_then(|native| self.focus(native));
+            removed.and(focused)
         })
     }
 }
+
+#[cfg(test)]
+#[path = "service_tests.rs"]
+mod tests;

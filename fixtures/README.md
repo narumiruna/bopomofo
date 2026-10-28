@@ -7,3 +7,5 @@
 JSONL case 每行包含 `event` 與選用的 `expect`。`expect` 是 Output 的遞迴 object subset；array 長度必須相同。省略 `expect` 不代表已驗證輸出。
 
 回歸測試不得由目前程式輸出自動覆寫預期值。預期 preedit、commit 與 status 必須由 input spec 決定。
+
+`ui-abort.jsonl` checks a balanced logical Escape tap followed by Shift mode changes. Windows adapter tests verify that candidate Abort sends the matching press and release.
