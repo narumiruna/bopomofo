@@ -6,7 +6,7 @@ The addon builds on **Linux aarch64, Ubuntu 24.04, Fcitx5 5.1.7** in an isolated
 
 No IME was installed, enabled, or removed. No host settings were changed. All X11, Wayland, application, and x86_64 desktop combinations remain **unverified**. The fixture lexicon is not a production lexicon. See [native-validation.md](native-validation.md) for the project evidence register.
 
-**Open P6 blocker:** Fcitx5 5.1.7 DBus `SelectCandidate(int)` has no render generation. A delayed client-side UI index is resolved against the current list. Captured `CandidateWord` guards do not protect this path. A headless model reproduces the gap; an end-to-end native delayed-click check has not run. P6 and native acceptance remain open.
+**Open P6 blocker:** Fcitx5 5.1.7 DBus `SelectCandidate(int)` has no render generation. A delayed client-side UI index is resolved against the current list. Captured `CandidateWord` guards do not protect this path. A headless model reproduces the gap; an end-to-end native delayed-click check has not run. The follow-up audit of release 5.1.23 and current tagged GTK/Qt clients found no generation-aware selection or sufficient ordering guarantee. Pinned sources and hashes are in [native-validation.md](native-validation.md). P6 and native acceptance remain open.
 
 ## Adapter boundary
 
@@ -127,7 +127,7 @@ The model only reproduces a known limitation. It does not validate a DBus client
 
 ### C++ sanitizer check
 
-The additional C++ sanitizer check used these flags in the same Linux container:
+The initial Debug C++ sanitizer check used these flags in the same Linux container. A later RelWithDebInfo adapter-contract check also passed the new 16-record `ui-abort.jsonl` case. Both checks leave Rust uninstrumented; neither is a desktop result.
 
 ```bash
 cmake -S platforms/linux/fcitx5 -B target/fcitx5-sanitized -G Ninja \

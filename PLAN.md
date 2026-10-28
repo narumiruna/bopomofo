@@ -15,7 +15,7 @@
 - Rust 1.92.0 已固定，`rustfmt`／Clippy 可正常執行。實際檢查與限制將保留於 `docs/native-validation.md`。
 - `LICENSE` 為 GNU AGPL v3 文件；實作前確認各套件的 license metadata，不自行更換專案授權。
 - 目前環境為 macOS arm64，已通過 InputMethodKit 開發 bundle build 與獨立 Swift／C ABI tests；尚未安裝或驗證 native IME 行為。
-- OrbStack Docker 提供 Linux arm64 headless build／contract tests。Windows 僅有 Rust cross-check，native SDK／runner 與各平台 desktop matrix 仍未驗證。
+- OrbStack Docker provides Linux arm64 headless build and contract tests. GitHub Actions provides Windows x64, WOW64 x86, and native ARM64 build and loader tests. Installed desktop validation remains open.
 - 正式詞庫與詞頻仍受資料權利及代表性限制；目前只使用自製 fixture，不將其視為產品詞庫。
 
 ## Scope
@@ -131,7 +131,7 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
 
 ### P0 — 固定輸入規格與外部前提
 
-- [x] 建立 `docs/input-spec.md`，定義各 composition state 的按鍵行為；證據：規則表、Mermaid state diagram、八份 JSONL fixture 與 `crates/ime-core/tests/engine.rs`。
+- [x] 建立 `docs/input-spec.md`，定義各 composition state 的按鍵行為；證據：規則表、Mermaid state diagram、九份 JSONL fixture 與 `crates/ime-core/tests/engine.rs`。
   - `cargo test -p ime-cli --test repository_fixtures` 通過，逐份比對手寫預期值與重播穩定性。
   - 明定 Space 在第一聲結束、選字與 commit 的差異，以及 Enter、Escape、Backspace、Shift、Caps Lock 的行為。
   - 候選選取模式必須明確進入，避免數字選字鍵與 Dachen 聲調鍵衝突。
@@ -157,7 +157,7 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
 
 - [x] 實作 Dachen mapping、音節 parser 與 canonical representation；證據：parser table tests 包含完整 mapping、五聲、ㄦ、apical syllables、合法／非法組合、slot 刪除與全表 round-trip。
 - [x] 實作 composition state machine 與單字候選；證據：五聲、Space、Enter、Escape、候選模式、數字衝突、shortcut／mode 與 64-syllable limit 測試通過。
-- [x] 增加非互動 replay regression suite；證據：`fixtures/{basic,tones,modes,editing,limit-64,gestures,reselection,aliases}.jsonl` 由 CLI 自動比對，重播兩次輸出一致。
+- [x] 增加非互動 replay regression suite；證據：`fixtures/{basic,tones,modes,editing,limit-64,gestures,reselection,aliases,ui-abort}.jsonl` 由 CLI 自動比對，重播兩次輸出一致。
 
 ### P3 — 詞庫管線、詞組與斷詞
 
@@ -185,6 +185,7 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
   - 原始碼、native build／test scripts、16 portable tests 與 x64／x86／ARM64 type check／Clippy 已通過。
   - 首次 CI 的 DLL loader test 因 build 前置步驟缺失而失敗；修正後 `f65a705`／run `40652597435` 的 5 jobs 全部通過。
   - `084517d` 的 common CI 5 jobs 與 Windows matrix 3 jobs 全通過。三架構各完成 debug／release build、19 unit tests 與 1 loader test；實際 document edit session／installed TSF 仍未驗證。
+  - `be12f48` fixes three review defects and adds six COM regressions. At `64b6b5a`, Windows run `40681626909` passed 25 unit tests and one DLL loader test per profile, per target. Debug and release DLL hashes are retained in `docs/native-validation.md`.
 - [ ] 驗證 Windows native candidate presentation 與 UTF-16 conversion。
   - UI-element interfaces、native LISTBOX fallback、portable Unicode／probe／lifecycle tests 與三架構 cross-check 已完成。
   - Candidate COM methods 與 portable ordering tests 已通過；實際 candidate rendering、document edit sessions 與 UI-less app 行為仍未驗證。
@@ -195,8 +196,8 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
 ### P6 — Linux Fcitx5 adapter
 
 - [ ] 完成 Fcitx5 addon 的端到端候選契約。
-  - 薄層 addon、八份共用 fixture（342 records）、checksum、Unicode、lifecycle、Sensitive-only transition、modifier remap 與 Shift／Enter alias tests 通過。
-  - **仍有已知 blocker：** Fcitx5 5.1.7 與已查核的 5.1.14 D-Bus `SelectCandidate(index)` 沒有 generation。舊 UI index 可能選到新清單；captured CandidateWord tests 不能證明此路徑安全。
+  - 薄層 addon、九份共用 fixture（358 records）、checksum、Unicode、lifecycle、Sensitive-only transition、modifier remap 與 Shift／Enter alias tests 通過。
+  - **仍有已知 blocker：** Fcitx5 5.1.7 與已查核的 5.1.14／5.1.23 D-Bus `SelectCandidate(index)` 沒有 generation。舊 UI index 可能選到新清單；captured CandidateWord tests 不能證明此路徑安全。
   - 已加入 headless gap model 並保留 native gate，不自行更改 protocol、停用 click 或加入 custom candidate window。
 - [x] 建立 Rust／C++ build／link／install 流程；證據：Ubuntu 24.04 arm64、Fcitx5 5.1.7 clean build、ABI gate、4/4 CTests、安裝／移除 dry-run 與 C++ ASan／UBSan 4/4 tests 通過。
   - Rust static library 未使用 sanitizer instrumentation，不將 C++ 結果當成 Rust sanitizer 證據。
@@ -252,8 +253,10 @@ cargo test --workspace --all-targets
 | Responsible role | Prerequisite | Action / expected result | Unverified behavior / release restriction |
 | --- | --- | --- | --- |
 | macOS tester | 可安裝的 bundle、啟用 input source 的授權與桌面操作環境 | 在 native text app、browser、Electron app 驗證 marked text、候選、commit、切換焦點、縮放與多螢幕；記錄結果 | 目前尚未執行 native UI checks；通過前不得宣稱 macOS 版本可正式使用。 |
-| Windows tester / CI owner | Windows SDK、相應架構 runner、TSF 測試環境 | 執行 native build／tests、註冊與移除；在代表性 app 驗證 composition、candidate、快捷鍵及焦點切換 | 未測架構與 app 類型不列入支援；x64 通過不代表 x86 app 或 ARM64 通過。 |
+| Windows tester / CI owner | Authorized installed TSF environment and desktop control for each target | Register the approved build. Validate live edit sessions, candidates, shortcuts, focus, and removal. Build and loader checks already pass. | No app or installed TSF acceptance exists. x64 does not establish x86 or ARM64 app support. |
 | Linux tester / CI owner | Fcitx5 development environment，以及實際 X11／Wayland desktop session | 執行 addon build／load，依 GTK、Qt、browser、Electron matrix 驗證輸入與移除 | headless unit tests 不等於 desktop integration；未測組合不得列為支援。 |
+| Fcitx framework / client owner | Generation-aware selection or a sufficient rendered-list ordering contract | Provide a framework/client fix or an approved design change that preserves native clicks and the window constraints. | P6 remains blocked through checked release 5.1.23. Current-list tokens cannot identify an old rendered index. |
+| Data / release owner | File-specific conversion and redistribution rights, fixed source snapshots, notices, and a representative Taiwan corpus | Provide approved inputs and corpus selection criteria. The agent can then verify conversion and run the benchmark. | Production lexicon, phrase frequency, representative performance, and data distribution remain blocked. See `data/SOURCES.md`. |
 | Release owner | 可重現 artifact、授權紀錄、native validation 結果及帳號／憑證 | 決定發布平台，完成必要簽章、notarization、散布與來源碼提供要求 | 未取得授權不執行外部發布；不要求在聊天中提供秘密資訊。 |
 
 ## Completion Checklist

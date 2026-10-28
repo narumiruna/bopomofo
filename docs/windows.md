@@ -7,11 +7,11 @@ A successful cross-target `cargo check` does not validate a DLL link, TSF regist
 
 | Target | Compile/type check on macOS | Windows DLL build and tests | Registered TSF and apps |
 | --- | --- | --- | --- |
-| x64 (`x86_64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: debug/release build, 19 unit tests and 1 loader test | Unverified |
-| x86 (`i686-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: debug/release build, 19 unit tests and 1 loader test under WOW64 | Unverified |
-| ARM64 (`aarch64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: debug/release build, 19 unit tests and 1 loader test on Windows 11 ARM64 | Unverified |
+| x64 (`x86_64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 25 unit tests and 1 loader test in each debug/release profile | Unverified |
+| x86 (`i686-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 25 unit tests and 1 loader test per profile under WOW64 | Unverified |
+| ARM64 (`aarch64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 25 unit tests and 1 loader test per profile on Windows 11 ARM64 | Unverified |
 
-The development host is macOS ARM64. GitHub Actions provided Windows Server 2022 x64/WOW64 and Windows 11 ARM64 runners. [Run 40654797923](https://github.com/narumiruna/bopomofo/actions/runs/40654797923) passed all three targets at commit `084517df55c064015ff32249ceaa7c15eb0a382d`. This does not validate a live document edit session or candidate window. No DLL was installed, registered, enabled, removed, or published. A Windows release is blocked until the applicable native checks pass. An x64 result must not be used as an x86 or ARM64 result.
+The development host is macOS ARM64. GitHub Actions provided Windows Server 2022 x64/WOW64 and Windows 11 ARM64 runners. [Run 40681626909](https://github.com/narumiruna/bopomofo/actions/runs/40681626909) passed all three targets and both profiles at commit `64b6b5a8678660ac3b1ee2754b55bc17d08a68d0`. DLL hashes are recorded in [native-validation.md](native-validation.md). This does not validate a live document edit session or candidate window. No DLL was installed, registered, enabled, removed, or published. A Windows release is blocked until the applicable native checks pass. An x64 result must not be used as an x86 or ARM64 result.
 
 ## Implementation
 
@@ -73,7 +73,7 @@ sequenceDiagram
 
 TSF test callbacks request delivery for **all keys in an allowed, focused context**, not only consumed keys. The core must observe pass-through key-down and key-up events for held-key and Shift bookkeeping. Each test callback that produces a logical key still calls the read-only core probe. Intermediate physical Shift transitions with no aggregate edge pass through without an engine event. It does not handle an event, change a generation, create a context, update a candidate, or commit text. The actual callback returns the core's real `consumed` value. Shortcuts remain pass-through.
 
-Virtual-key names use lowercase strings, including `caps_lock`, `page_up`, and `page_down`. Modifier transitions are delivered with modifier state. Repeat uses native `lParam` bit 30; release callbacks set `release` and do not set `repeat`. Printable keys use the physical US Set 1 scan code from `lParam`, not letters produced by the current text layout. Native modifier/action remaps retain their virtual-key meaning; code-less events use the virtual-key fallback. Left/right modifier samples are corrected to post-event state, so final releases do not retain a pre-release flag. Only the first aggregate Shift press and final release reach core. `TF_STATUS.dwDynamicFlags` read-only/loading status and disabled/empty-context compartments prevent processing. An asynchronous edit checks these restrictions again before it can insert preedit or commit. There are no global hooks, clipboard operations, or injected keys.
+Virtual-key names use lowercase strings, including `caps_lock`, `page_up`, and `page_down`. Modifier transitions are delivered with modifier state. Repeat uses native `lParam` bit 30; release callbacks set `release` and do not set `repeat`. Printable keys use the physical US Set 1 scan code from `lParam`, not letters produced by the current text layout. Native modifier/action remaps retain their virtual-key meaning; code-less events use the virtual-key fallback. Left/right modifier samples are corrected to post-event state, so final releases do not retain a pre-release flag. Only the first aggregate Shift press and final release reach core. `TS_STATUS.dwDynamicFlags` read-only/loading status and disabled/empty-context compartments prevent processing. An asynchronous edit checks these restrictions again before it can insert preedit or commit. There are no global hooks, clipboard operations, or injected keys.
 
 ### Composition, offsets, and candidates
 
@@ -105,7 +105,7 @@ The portable suite covers non-BMP Han characters, emoji, combining sequences, in
 
 All three MSVC targets passed `cargo check` and target Clippy with warnings denied on macOS. The x86 check found and fixed pointer-width conversions around `GetWindowLongPtrW`/`SetWindowLongPtrW`; x64 checks alone did not detect that error.
 
-The Windows-only tests are type-checked by cross-target checks but are not executed on macOS. They test COM interfaces, non-agile identity, aggregation rejection, server locks, idempotent deactivation, candidate strings/pages, stale callbacks, and panic HRESULTs. `tests/dll.rs` loads the real DLL and checks exports and unload behavior without registration. Build the DLL before running that test.
+The Windows-only tests are type-checked by cross-target checks but are not executed on macOS. They test COM interfaces, non-agile identity, aggregation rejection, server locks, idempotent deactivation, candidate strings/pages, stale callbacks, and panic HRESULTs. They also test dynamic restrictions, balanced Abort, held keys, and context-stack focus with COM mocks. `tests/dll.rs` loads the real DLL and checks exports and unload behavior without registration. Build the DLL before running that test.
 
 ## Windows native build and CI preparation
 

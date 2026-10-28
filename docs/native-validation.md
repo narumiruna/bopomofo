@@ -54,7 +54,7 @@ Container 只建立暫存 build directory，不安裝或啟用 IME，不連接 d
 | macOS standalone contracts | 125 pure adapter assertions、96 actual C ABI assertions、16 management dry-run cases 通過。 | 不建立 IMKServer session，不啟動輸入法，不執行 `--apply`。 |
 | Windows x64 / x86 / ARM64 source | 三個 MSVC targets 均通過 pinned Rust 1.92.0 `cargo check` 與 target Clippy。 | 這是本機 cross-check；三架構 native build／load 的獨立 CI 證據見下節，installed TSF 仍未驗證。 |
 | Windows portable contracts | 在 macOS 執行的 16 tests 通過，含 physical scan codes、post-event modifiers、offsets、checksum、probe、stale tickets 與 dispatch gate。 | 不是 COM／TSF native runtime 證據。 |
-| Linux arm64 headless | 最終 source clean build、ABI／C++ contracts 4/4 及 C++ ASan／UBSan 4/4 通過；含 Shift reset、native remap、Sensitive 與八份 fixture。 | ASan／UBSan adapter test 230.79 s；Rust archive 為正常 release，未使用 sanitizer instrumentation；不證明 desktop 或 index-only UI 安全。 |
+| Linux arm64 headless | Initial source snapshot clean build、ABI／C++ contracts 4/4 及 C++ ASan／UBSan 4/4 通過；含 Shift reset、native remap、Sensitive 與八份 fixture。 | ASan／UBSan adapter test 230.79 s；Rust archive 為正常 release，未使用 sanitizer instrumentation；不證明 desktop 或 index-only UI 安全。 |
 | Native CI preparation | `.github/workflows/checks.yml` 與 `.github/workflows/windows.yml` 已啟用，3 份 YAML parse 通過。 | 已推送並觸發，首次 run 的失敗與重驗狀態見下節。 |
 | PowerShell source | 官方 PowerShell 7.5.0 Linux amd64 container 解析 4 份 `.ps1` 成功。 | 此項僅為 AST parsing；`Build-Test.ps1` 的 Windows runtime 證據另列於 CI，註冊／移除腳本仍未執行。 |
 | Documentation | 12 份 Markdown 的 whitespace／fences／local links 通過；8 份 Mermaid diagrams 已用 Mermaid CLI 11.12.0 + local headless Chrome render。 | Renderer outputs 在 ignored `target/diagram-check/`，不納入 Git。 |
@@ -90,6 +90,16 @@ Commit `084517df55c064015ff32249ceaa7c15eb0a382d` 的 [common run 40654797765](h
 
 Logs 已確認三個 target directory 的 test executables 實際執行，不是只 cross-check。三列都未註冊、啟用或進行 desktop input。不能將 WOW64 結果推論到 x86 app integration，或將 native ARM64 結果推論到 ARM64 上的其他 emulated apps。
 
+### Review and release-profile verification
+
+Commit `be12f4804683a270932c484e5d0fce6dad304b26` fixes candidate Abort key balance, dynamic document restrictions, and context-pop focus restoration. [Common PR CI 40678543301](https://github.com/narumiruna/bopomofo/actions/runs/40678543301) passed 5/5 jobs. [Windows PR CI 40678543330](https://github.com/narumiruna/bopomofo/actions/runs/40678543330) passed 3/3 jobs. Each Windows target ran 25 unit tests and one debug DLL loader test. Its 89-path source snapshot SHA-256 is `d49cdd4337a3a6e19f0d3ec4a7b8cd90d7245fa1359f450f157f3a1e7c3b9308`.
+
+Commit `64b6b5a8678660ac3b1ee2754b55bc17d08a68d0` adds release-profile tests and DLL hash logging. [Common PR CI 40681626779](https://github.com/narumiruna/bopomofo/actions/runs/40681626779) passed 5/5 jobs. [Windows PR CI 40681626909](https://github.com/narumiruna/bopomofo/actions/runs/40681626909) passed 3/3 jobs. Each Windows target ran 25 unit tests and one DLL loader test **in each debug and release profile**. Its 89-path source snapshot SHA-256 is `15576e969ebb7d4b9e087e55e9306350f236b92a0ec829a07861f5cbd423b9c0`.
+
+The six new Windows tests use COM mocks. They cover dynamic flags, balanced Abort, held keys, error recovery, and context-stack focus. They do not test an installed TIP, a live text store, or candidate rendering.
+
+The shared replay now has nine files and 358 records. Debug and release CLI replay checks passed. A Linux arm64 C++ ASan/UBSan follow-up passed the new 16-record `ui-abort.jsonl` case and the adapter contracts. It used `RelWithDebInfo`, `-fsanitize=address,undefined -fno-omit-frame-pointer`, leak detection, and halt-on-UB. The Rust archive was a normal release build. The contract executable SHA-256 was `851b4796dfc2ffc97062957bef1968ea4cb9730cb19ffe83e84df9c596520a60`. No desktop or stale rendered-click safety pass is claimed.
+
 ## Artifact identity
 
 macOS executable：
@@ -108,7 +118,17 @@ C ABI header
 SHA-256 6a2480cbae7000618cba390a3932998595570a90f1a5729f4baab3bb93ff3167
 ```
 
-每次重建後，以 `platforms/macos/build/build-evidence.txt` 的新 hash 核對本節。Build 輸出與 binary 不納入 Git。Windows 三架構 debug／release DLL 已在 CI 產生；debug loader tests 通過。最新 build IDs 為 commit `084517d`、run `40654797923` 與上表各 job ID。Workflow 未輸出 Windows DLL hash，未下載或發布 binary，不提供虛構 hash。
+每次重建後，以 `platforms/macos/build/build-evidence.txt` 的新 hash 核對本節。Build 輸出與 binary 不納入 Git。
+
+Windows DLL hashes below identify the actual builds in run `40681626909` at commit `64b6b5a`. Both profiles passed loader tests. No Windows binary was downloaded, installed, or published.
+
+| Windows target | Debug DLL SHA-256 | Release DLL SHA-256 | Build job ID |
+| --- | --- | --- | --- |
+| `x86_64-pc-windows-msvc` | `87398e91d21f8d4470f84b9b41e6f06a2f2586c93e17cf506cc0cc01d7dca450` | `f8e534cf2160506902063308ec3d721b328b2661e8181e2be4796931f42d1c5f` | `122793498086` |
+| `i686-pc-windows-msvc` | `07e1787ac7678dccd21fa02a93afe5392fa4eb6a87df4d5536febdf3eb0bfd53` | `26ad12e96766596e2cd4eeb62efd29649a5904ce1f3555e121190187c1e5b811` | `122793497700` |
+| `aarch64-pc-windows-msvc` | `766dd11a49f458977d0faf91f55ac25b5abb0e686eaacb4ae46083a6f3bb8fe8` | `3a35abd35aa730277a99a10a7e859f0dab3f500fe3476f449b58014511413e3d` | `122793498087` |
+
+Each target used the self-authored lexicon SHA-256 `c54ced5e1e44472337f9bb5c5b8fe41e7a692a33dbfa8d360991704888f11dcd`. Hashes identify these builds, not a signature trust chain or product acceptance.
 
 Linux 最終 clean container build：
 
@@ -155,6 +175,16 @@ cargo run --release -p ime-cli -- benchmark fixtures/lexicon.tsv fixtures/limit-
 Core 與 captured CandidateWord callback 會驗證 generation。但 Fcitx5 5.1.7 D-Bus frontend 的 `SelectCandidate(index)` 只帶 index，並查詢當下的 candidate list。
 
 另查核 [Fcitx5 5.1.14 pinned source](https://github.com/fcitx/fcitx5/blob/7688bd73249f4fc880baaa520c2240a2579dc0b9/src/frontend/dbusfrontend/dbusfrontend.cpp)：`selectCandidate` 仍取 current list，D-Bus method signature 仍為 `i`，沒有 generation。該檔 SHA-256 為 `32755f97fa606353f11d49301e1d628f8d346c60e2ec3053b5d3c0505316b1c5`，因此不能假設只升級此版本就能解除限制。
+
+
+A follow-up audit on 2026-10-28 UTC checked the newest official release found, **Fcitx5 5.1.23**. The [tag](https://github.com/fcitx/fcitx5/tree/27cca6e0239938b2d53937061d0980c087856b22) resolves to commit `27cca6e0239938b2d53937061d0980c087856b22`. The [official release archive](https://download.fcitx-im.org/fcitx5/fcitx5/fcitx5-5.1.23.tar.zst) SHA-256 is `d287119db9dc3113bb3a2b0e78ce8670e064b744c14d3aaec69799374aadb00b`.
+
+- [SelectCandidate](https://github.com/fcitx/fcitx5/blob/27cca6e0239938b2d53937061d0980c087856b22/src/frontend/dbusfrontend/dbusfrontend.cpp#L403-L412) still resolves the index against the current list.
+- Its input signature remains `i`. `UpdateClientSideUI` has no generation or render acknowledgement. The file SHA-256 is `48c1bb1aa3e6446804fe906312488c07e0f5a066be0910440af9884281b51194`; the archive copy matches it.
+- The checked [GTK 5.1.7 client](https://github.com/fcitx/fcitx5-gtk/blob/3b18d2ab7401d4233daf38bbc5896f1703685a43/fcitx-gclient/fcitxgclient.c#L560-L571) and [Qt 5.1.16 client](https://github.com/fcitx/fcitx5-qt/blob/115750044f3d0db16ca5859808c7da830fd1ff52/qt5/dbusaddons/fcitxqtinputcontextproxyimpl.h#L109-L114) send asynchronous index-only requests.
+- `KeyEventOrderFix` applies to key-event output. It does not bind a candidate click to a rendered list. FIFO delivery alone cannot prevent the server from replacing a list before the client displays it.
+
+The audit found no sufficient generation or ordering guarantee. P6 remains blocked. No framework or client code was executed or imported.
 
 ```mermaid
 sequenceDiagram

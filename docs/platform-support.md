@@ -13,9 +13,9 @@
 | Core / C ABI，`aarch64-apple-darwin` | **Available**：Rust/Cargo 1.92.0 | Core／FFI tests 已執行；SDK probe 仍不能代替這些 tests。 |
 | macOS arm64 / InputMethodKit | **Available**：Swift、Clang、AppKit、InputMethodKit headers/link stubs | SDK typecheck、bundle build 與 standalone adapter tests 通過；native checks 仍需安裝／啟用授權及 desktop 操作。 |
 | macOS x86_64 / InputMethodKit | **Blocked**：未安裝 `x86_64-apple-darwin` Rust target，未確認相應 runner | 尚無 x86_64 build 或 native 結果；arm64 結果不能推論到 Intel Mac。 |
-| Windows x64，`x86_64-pc-windows-msvc` | Cross-check 與 Windows Server 2022 native CI **Available** | Debug／release DLL、19 unit tests 與 1 loader test 通過；installed TSF／desktop 未驗證。 |
-| Windows x86，`i686-pc-windows-msvc` | Cross-check 與 Windows Server 2022 WOW64 CI **Available** | x86 debug／release DLL、19 unit tests 與 1 loader test 通過；不是 installed x86 app 驗收。 |
-| Windows ARM64，`aarch64-pc-windows-msvc` | Cross-check 與 Windows 11 ARM64 CI **Available** | ARM64 debug／release DLL、19 unit tests 與 1 loader test 通過；native／emulated app 組合仍未驗證。 |
+| Windows x64，`x86_64-pc-windows-msvc` | Cross-check 與 Windows Server 2022 native CI **Available** | Debug/release DLLs and 25 unit tests plus one loader test per profile passed. Installed TSF and desktop input remain unverified. |
+| Windows x86，`i686-pc-windows-msvc` | Cross-check 與 Windows Server 2022 WOW64 CI **Available** | x86 debug/release DLLs and 25 unit tests plus one loader test per profile passed under WOW64. This is not installed x86 app acceptance. |
+| Windows ARM64，`aarch64-pc-windows-msvc` | Cross-check 與 Windows 11 ARM64 CI **Available** | ARM64 debug/release DLLs and 25 unit tests plus one loader test per profile passed. Native and emulated app combinations remain unverified. |
 | Linux arm64 / Fcitx5 | Docker headless environment **Available**；macOS host 不直接安裝 Fcitx5 SDK | 已建立 Ubuntu 24.04／Fcitx5 5.1.7 headless environment；desktop session 與已知 integration gaps 仍未通過。 |
 | Linux x86_64 / Fcitx5 | Ubuntu 24.04 native headless CI **Available** | Build／ABI／4 CTests 通過；沒有 desktop session，不推論到 GTK／Qt／browser／Electron。 |
 
