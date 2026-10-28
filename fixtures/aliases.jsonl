@@ -1,0 +1,8 @@
+{"event":{"type":"key","key":"enter"},"expect":{"consumed":false,"snapshot":{"mode":"chinese","preedit":""},"commit":null,"status":null}}
+{"event":{"type":"key","key":"enter"},"expect":{"consumed":false,"snapshot":{"mode":"chinese","preedit":""},"commit":null,"status":null}}
+{"event":{"type":"key","key":"enter","release":true},"expect":{"consumed":false,"snapshot":{"mode":"chinese","preedit":""},"commit":null,"status":null}}
+{"event":{"type":"key","key":"shift","shift":true},"expect":{"consumed":false,"snapshot":{"mode":"chinese","preedit":""},"commit":null,"status":null}}
+{"event":{"type":"key","key":"shift","release":true},"expect":{"consumed":false,"snapshot":{"mode":"chinese","preedit":""},"commit":null,"status":null}}
+{"event":{"type":"key","key":"enter","release":true},"expect":{"consumed":false,"snapshot":{"mode":"chinese","preedit":""},"commit":null,"status":null}}
+{"event":{"type":"key","key":"shift","shift":true},"expect":{"consumed":false,"snapshot":{"mode":"chinese","preedit":""},"commit":null,"status":null}}
+{"event":{"type":"key","key":"shift","release":true},"expect":{"consumed":true,"snapshot":{"mode":"latin","preedit":""},"commit":null,"status":null}}

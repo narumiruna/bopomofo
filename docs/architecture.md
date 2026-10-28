@@ -2,7 +2,9 @@
 
 ## Status and scope
 
-本文件定義 bopomofo 的目標架構與責任邊界，不代表功能已實作或通過 native 驗證。目前只有文件，尚無 Cargo workspace、輸入引擎或平台 adapter。
+本文件定義 bopomofo 的架構與責任邊界。Repository 已建立 Rust core、C ABI、replay CLI 與三平台 adapter。
+
+目前使用自製測試詞庫。Build 與 contract tests 不代表 native desktop 驗收，實際結果見 [native-validation.md](native-validation.md)。
 
 第一個跨平台版本使用 Traditional Chinese、標準 Dachen keyboard layout 與完全離線的輸入流程。組字狀態、Zhuyin parser、詞庫索引、斷詞與候選排序均自行以 Rust 實作，不使用 `chewing`、`librime` 或其他現成輸入引擎。
 
@@ -28,7 +30,7 @@ flowchart TB
     Lexicon -->|Initialization data| Core
 ```
 
-| 規劃路徑 | 責任 | 限制 |
+| 路徑 | 責任 | 限制 |
 | --- | --- | --- |
 | `crates/ime-core/` | 處理事件、組字、音節解析、詞庫查詢、斷詞與排序 | 不依賴 GUI、OS handle、網路或檔案路徑。 |
 | `crates/ime-ffi/` | 提供 macOS／Linux 共用的 C ABI | 只轉換資料、管理 ownership 與回傳錯誤，不實作另一套輸入規則。 |
@@ -40,7 +42,7 @@ flowchart TB
 | `data/` | 記錄資料來源、授權、版本、checksum 與產物規則 | 正式資料未核准前，不匯入或散布。 |
 | `docs/` | 保存輸入規格、架構、平台支援與 native 驗證結果 | 不以設計文件代替執行證據。 |
 
-這些是規劃路徑，不代表目錄已建立。先建立 core 與 replay 工具，其他 crate 與平台目錄在對應階段加入，不先建立空的抽象層。
+Core、FFI、CLI 與各平台使用獨立目錄。共用輸入規則只放在 core，不為未來需求建立空的抽象層。
 
 ## Rust core
 
@@ -66,7 +68,7 @@ flowchart TB
 
 ### Events and outputs
 
-以下描述邏輯契約，不固定尚未實作的 Rust 型別欄位或 C ABI signature。
+Rust 型別見 `crates/ime-core/src/lib.rs`。C ABI signature 與 ownership 見 `crates/ime-ffi/include/bopomofo.h`。跨 C ABI 的事件與輸出使用 UTF-8 JSON，host 在初始化時檢查 header／library 的 ABI version。
 
 | 事件 | 契約 |
 | --- | --- |
@@ -83,13 +85,16 @@ flowchart TB
 - 相同初始狀態、詞庫與事件序列必須產生相同結果。
 - 同分排序使用固定 tie-break rule，並以 replay fixture 固定預期順序。
 
-Space、Enter、Escape、Backspace、Shift、Caps Lock、快捷鍵透傳、不完整音節與 focus loss 的具體行為由待建立的 `docs/input-spec.md` 定義。Adapter 不得自行增加另一套選字或提交規則。
+Space、Enter、Escape、Backspace、Shift、Caps Lock、快捷鍵透傳、不完整音節與 focus loss 的行為由 [input-spec.md](input-spec.md) 定義。Adapter 不得自行增加選字或提交規則。
+
+Adapter 必須將透傳 key 的 press／release 與 modifier transitions 送入 core。這些事件可更新 chord 狀態，但 consumed 仍為 false。Windows TSF test callback 可要求後續 callback 以觀察事件，不能因此提前改變 core 狀態。
 
 ### Composition and decoding limits
 
 - 單次 composition 最多 64 個音節。
   - 超限時保留既有內容、拒絕新增音節並回報狀態，不靜默丟棄內容或自動 commit。
-- 候選數量與搜尋範圍必須有界，不列舉所有 segmentation 組合。
+- 每份候選快照最多 128 個項目，每頁 9 個；詞組最多 16 個音節。
+- Decoder 每個位置最多查詢 16 個 span，不列舉所有 segmentation 組合。
 - Decoder 先使用可解釋的詞頻分數與單字 fallback，不加入缺少語料支持的語意模型。
 - 未知讀音不得被靜默刪除。
 - 選字可以鎖定音節 span，其他區段可重新計算。
@@ -99,7 +104,8 @@ Space、Enter、Escape、Backspace、Shift、Caps Lock、快捷鍵透傳、不�
 ### Text positions
 
 - 音節位置與文字 offset 使用不同表示，不假設一個音節對應一個 Unicode scalar。
-- Core 輸出的文字位置使用 UTF-8 byte offset，所有位置必須位於合法 char boundary。
+- Snapshot cursor 使用 UTF-8 byte offset，必須位於合法 char boundary。
+- Candidate 的 start／end 是音節索引，不能當成文字 byte offset。
 - Adapter 負責轉換平台所需的 range 單位；macOS／Windows 的相關介面使用 UTF-16 時，必須明確換算。
 - 不得以 byte length 或 Unicode scalar count 代替 UTF-16 code unit length。
 - Range 測試必須包含非 BMP Han character、emoji 與 combining sequence。
@@ -146,6 +152,9 @@ sequenceDiagram
   - 發生不可恢復的 engine 錯誤時，adapter 取消受影響的 composition，並釋放或重建該 context。
   - 不自動重試可能已提交的文字，也不將錯誤文字當成輸入內容提交。
 - C header 與 Rust library 必須來自一致的 ABI 版本，build／link 流程必須檢查此條件。
+- Native package 附 `lexicon.sha256`。Host 在初始化時驗證詞庫 SHA-256，缺失或不符時拒絕載入。
+  - C ABI 提供 `bpm_lexicon_verify`，Windows Rust adapter 直接使用相同 SHA-256 演算法。
+  - Checksum 識別內容，不證明來源真實性或資料授權。
 
 ## Lexicon pipeline
 
@@ -165,11 +174,13 @@ flowchart LR
     Loader --> Index
 ```
 
-- 來源紀錄保存於待建立的 `data/SOURCES.md`，每份來源必須有 URL、版本、checksum、授權、署名及允許的轉換／散布範圍。
+- 來源紀錄保存於 `data/SOURCES.md`，每份來源必須有 URL、版本、checksum、授權、署名及允許的轉換／散布範圍。
 - Importer 必須檢出非法音節、缺失欄位、重複紀錄與無效頻率，並保留詞組的明確讀音對應。
 - 同一份已固定版本的來源，必須重建出相同排序與 checksum 的產物。
 - 初期使用有版本的文字格式，於初始化時建立 in-memory index；沒有量測證據前不加入 binary format 或 mmap。
 - 格式不相容、checksum 不符或內容無效時拒絕載入，不以錯誤資料繼續輸入。
+- Rust lexicon parser 最多接受 64 MiB、250,000 筆資料、每個 reading 256 個候選與每筆文字 1,024 bytes。
+- CLI 與 C ABI 的輸入檔上限為 32 MiB；C ABI event JSON 上限為 4,096 bytes。
 - 正式來源未解決前，使用自製最小測試詞庫；不得據此宣稱已通過產品品質、代表性效能或資料散布驗收。
 - 不自行更換 repository 的 AGPL v3 license；各套件 metadata 與詞庫資料授權仍須核對。
 
@@ -196,13 +207,12 @@ flowchart LR
 
 平台特定依賴必須使用 target gating，讓 core tests 不需要其他 OS 的 SDK。Native 結果日後保存於 `docs/native-validation.md`，每個組合分別標示 passed、failed 或 unverified。
 
-初始效能目標是在最多 64 音節的代表性 replay corpus 上，core key handling p95 < 5 ms，不包含平台 UI rendering。目前未量測。
+初始效能目標是在最多 64 音節的代表性 replay corpus 上，core key handling p95 < 5 ms，不包含平台 UI rendering。目前只量測自製 fixture，代表性效能 gate 尚未驗證。
 
 ## Open decisions and prerequisites
 
-- 輸入操作規格：Space、候選模式、Shift、Caps Lock 與 focus loss 等規則，須在 state machine 正式實作前由 input spec 與 fixture 固定。
 - 平台支援範圍：最低 OS 版本、CPU 架構與必要的應用程式組合尚未確認，不預先宣稱支援。
 - 詞庫來源與詞頻：須完成來源調查與授權核對，才可決定正式匯入與散布的資料。
-- Native 驗證環境：Windows／Linux runner 與桌面 session 尚未確認；macOS 的 InputMethodKit build 與 native 行為尚未驗證。
+- Native 驗證環境：macOS bundle 與 Linux headless build 已可在目前環境檢查。Windows 三架構 CI 已通過 build／load／非註冊 tests；各平台 installed desktop matrix 仍須獨立證據。
 
 先以自製 fixture 建立 core 與 replay，再進行最小 macOS integration spike，之後完成 parser、decoder 與 macOS MVP，再接 Windows／Linux。開發順序不代表各平台已通過驗收或取得發布授權。

@@ -1,0 +1,16 @@
+{"event":{"type":"key","key":"1"},"expect":{"consumed":true,"snapshot":{"preedit":"ㄅ"},"commit":null}}
+{"event":{"type":"key","key":"1","release":true},"expect":{"consumed":false,"commit":null}}
+{"event":{"type":"key","key":"8"},"expect":{"consumed":true,"snapshot":{"preedit":"ㄅㄚ"},"commit":null}}
+{"event":{"type":"key","key":"8","release":true},"expect":{"consumed":false,"commit":null}}
+{"event":{"type":"key","key":"space"},"expect":{"consumed":true,"snapshot":{"preedit":"八"},"commit":null}}
+{"event":{"type":"key","key":"space","release":true},"expect":{"consumed":false,"commit":null}}
+{"event":{"type":"key","key":"down"},"expect":{"consumed":true,"snapshot":{"selecting":true},"commit":null}}
+{"event":{"type":"key","key":"down","release":true},"expect":{"consumed":false,"snapshot":{"selecting":true},"commit":null}}
+{"event":{"type":"key","key":"escape"},"expect":{"consumed":true,"snapshot":{"preedit":"八","selecting":false},"commit":null}}
+{"event":{"type":"key","key":"escape","release":true},"expect":{"consumed":false,"snapshot":{"preedit":"八","selecting":false},"commit":null}}
+{"event":{"type":"key","key":"shift","shift":true},"expect":{"consumed":false,"snapshot":{"mode":"chinese"},"commit":null}}
+{"event":{"type":"key","key":"shift","release":true},"expect":{"consumed":true,"snapshot":{"preedit":"","mode":"latin"},"commit":null}}
+{"event":{"type":"key","key":"shift","shift":true},"expect":{"consumed":false,"snapshot":{"mode":"latin"},"commit":null}}
+{"event":{"type":"key","key":"shift","release":true},"expect":{"consumed":true,"snapshot":{"preedit":"","mode":"chinese"},"commit":null}}
+{"event":{"type":"key","key":"1"},"expect":{"consumed":true,"snapshot":{"preedit":"ㄅ"},"commit":null}}
+{"event":{"type":"key","key":"1","release":true},"expect":{"consumed":false,"snapshot":{"preedit":"ㄅ"},"commit":null}}
