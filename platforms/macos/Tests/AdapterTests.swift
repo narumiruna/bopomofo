@@ -178,8 +178,15 @@ private func presentationTests() throws {
     try check(state.snapshot == beforeError, "failed output preserves presentation until cancellation")
     let unknown = EngineOutput(consumed: true, snapshot: snapshot(), commit: nil, status: "unknown_status")
     try rejects("unknown output status") { _ = try state.accept(unknown, delivery: 13) }
+    let full = (0..<256).map { Candidate(text: "candidate-\($0)", start: 0, end: 1) }
+    let fullPage = try state.accept(output(snapshot("字", candidates: full, index: 255, page: 28)), delivery: 13)!
+    try check(fullPage.candidates.count == 4 && fullPage.candidates.last?.token.index == 255,
+        "all 256 core candidates remain reachable")
+    try rejects("candidate count exceeds core limit") {
+        _ = try state.accept(output(snapshot("字", candidates: full + [Candidate(text: "extra", start: 0, end: 1)])), delivery: 14)
+    }
     let badSpan = snapshot("x", candidates: [Candidate(text: "x", start: 0, end: 0)])
-    try rejects("candidate spans are nonempty syllable ranges") { _ = try state.accept(output(badSpan), delivery: 13) }
+    try rejects("candidate spans are nonempty syllable ranges") { _ = try state.accept(output(badSpan), delivery: 14) }
 }
 
 @main

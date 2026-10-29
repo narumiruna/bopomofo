@@ -2,9 +2,9 @@
 
 ## Status and policy
 
-正式 Traditional Chinese Zhuyin lexicon 與 phrase frequency data **尚未選定或核准匯入**。目前只允許使用本專案自製的最小 fixtures。外部來源的調查結果不等於 import 或 release approval。
+使用者於 **2026-10-29** 指定記錄 CNS11643 與 McBopomofo，並核准先使用 CNS11643 補充 Taiwan 正體中文單字。CNS11643 的指定字區已完成資料授權查核與匯入；McBopomofo 仍只調查，不匯入。正式 phrase lexicon、phrase frequency 與 release approval 仍未完成。
 
-本次於 **2026-10-28 UTC** 以 `curl` 查閱來源、license 與資料格式。供檢查的下載檔只放在 repository 外的 temporary directory；未將外部 lexicon、corpus、importer 或輸入引擎程式碼加入 repository。
+**2026-10-28 UTC** 的調查未匯入外部資料。**2026-10-29 UTC** 另查核 CNS11643 官方資料集、授權與字區，取得固定 snapshot 並新增離線 importer。Repository 只保存核准字區的文字資料、產物與 notices；不保存 ZIP archives，也不匯入其他輸入引擎的程式碼。
 
 - 保留根目錄 `LICENSE` 的 GNU AGPL v3 policy，不更換專案授權。
   - 自製 fixtures 依 repository 的 AGPL policy 管理，不另加新的 license。
@@ -17,10 +17,11 @@
 
 | ID | 可提供的內容 | 條款查核結果 | 本專案狀態 |
 | --- | --- | --- | --- |
+| `cns11643-20261028` | Taiwan 常用／次常用字的直接 Zhuyin 與 Unicode mapping | 官方資料集明確提供資料授權；選用 OGDL-Taiwan-1.0，保留 attribution 與完整條款 | **核准用於本次單字補充**；13,052 字、16,496 字音 pairs，另保留五筆自製詞組。不是正式 phrase／frequency 資料，也未發布。 |
 | `fixture-local` | 自製字、詞、讀音及人工設定的 ranking scores | 不取自外部 dictionary 或 corpus；依現有 AGPL policy 管理 | 允許用於開發；不是產品詞庫或真實詞頻證據。 |
 | `unicode-unihan-17` | Character readings；少量 character/pronunciation frequencies | Unicode License V3 明確允許修改與散布，須保留 notice | **Candidate，未核准匯入**；可供 character fallback 評估，不足以取代 phrase lexicon。 |
 | `cc-cedict-snapshot` | Traditional/Simplified forms、phrase Pinyin、English definitions | 資料 header 與 publisher 均指定 CC BY-SA 4.0 | **Candidate，未選用**；需處理 ShareAlike、讀音品質與 snapshot 保存，沒有 phrase frequency。 |
-| `mcbopomofo-data` | 直接的 Zhuyin 字詞 mapping 與 phrase occurrence counts | Root MIT 與 data 的上游 provenance 必須分開查核 | **Blocked approval**；libtabe notices 與 frequency provenance 尚未確認完整。 |
+| `mcbopomofo-data` | 直接的 Zhuyin 字詞 mapping 與 phrase occurrence counts | Root MIT 與 data 的上游 provenance 必須分開查核 | **使用者指定的後續候選，暫不匯入**；libtabe notices 與 frequency provenance 尚未確認完整。 |
 | `moe-revised` | Traditional Chinese 字詞、Zhuyin、definitions | 官方指定 CC BY-ND 3.0 Taiwan；未取得本專案轉換所需的另行許可 | **Blocked for transformed lexicon**；不匯入、不假設 ND 允許 extraction。 |
 | `naer-coct` | 官方提供通用詞頻表下載連結 | 已查閱頁面未提供適用於該檔的轉換／散布授權證據 | **Rights unverified**；未下載、匯入或散布詞頻表。 |
 | `tatoeba-cmn` | Mandarin sentences 與 translation-base metadata | 官方區分 CC BY 2.0 FR 一般 corpus 與 CC0 subset | **Candidate only**；CC0 僅一筆，未提供 Taiwan 詞頻或 gold Zhuyin replay 證據。 |
@@ -36,6 +37,35 @@
   - `ime-cli build-lexicon` 正規化產物 SHA-256：`7f57031c86bb4c3d909b4e24a08e54d771bba4cc7d06a7c164e121fb62be37d6`。
   - 兩次匯出結果以 `cmp` 驗證完全相同；版本由包含本檔與 fixture 的 repository revision 固定。
 - 極小 fixture 的測試不能證明正式詞庫的 coverage、候選品質或代表性效能。
+
+## CNS11643 Taiwan character supplement
+
+本次選用官方定義的第一字面 `4421–7D4B` 與第二字面 `2121–7245` 中文字區。這些字區以 MOE 標準字體表與教科書用字為基礎，不將整份 CNS repertoire 當成純正體詞庫。共享字形與歷史用字仍依該字區保留，不以字元是否也用於 Simplified Chinese 判定刪除。
+
+| 欄位 | 紀錄 |
+| --- | --- |
+| Publisher | Ministry of Digital Affairs, Taiwan；官方署名保留「數位發展部，CNS11643中文標準交換碼全字庫網站」。 |
+| Dataset / data-specific rights | <https://data.gov.tw/dataset/5961>；明確包含注音屬性與碼位對照。備註允許在 OGDL-Taiwan-1.0 與 OFL-1.1 中選一。 |
+| Selected license | [Open Government Data License, version 1.0](https://data.gov.tw/license)。§2.1–2.3 允許編輯、改作、散布、再轉授權；遵守 attribution 等條款，不改成 AGPL-only。 |
+| Additional source conditions | [CNS license page](https://www.cns11643.gov.tw/pageView.jsp?ID=59) 的來源署名、錯誤提供修正承諾與免責聲明。 |
+| Character subset evidence | [官方中文字區說明](https://www.cns11643.gov.tw/pageView.jsp?ID=9)。第一字面符號區、其他字面與 user-defined 區不匯入。 |
+| Fixed release | `20261028`；於 2026-10-29 UTC 下載，依官方 [release.txt](https://data.cns11643.gov.tw/opendata/release.txt) 核對。 |
+| Properties archive | <https://data.cns11643.gov.tw/opendata/Properties.zip>；SHA-256 `91214ba96946e0ea41d4cb7b709c036f3301dd4a621d9a0fa6ad2ccf1db6d297`。 |
+| Mapping archive | <https://data.cns11643.gov.tw/opendata/MapingTables.zip>；SHA-256 `605cadc2074cb5399bf03a268ab1f66a52384f08acb27021178c13d041cb87d2`。 |
+| Input fields | `CNS_phonetic.txt` 的 CNS code／Zhuyin；`Unicode/CNS2UNICODE_Unicode BMP.txt` 的 CNS code／Unicode scalar。 |
+| Conversion | 固定字區 extraction、碼位 join、core syllable 驗證、聲調正規化、人工 fallback score、固定排序、canonical TSV。保留多讀音，不推測詞組讀音。 |
+| Notices / reproducibility | [CNS guide](cns11643/README.md)、[attribution](cns11643/NOTICE.txt)、[完整條款](cns11643/LICENSE.txt)、[retained source manifest](cns11643/source/manifest.json) 與 [build report](cns11643/build.json)。 |
+| Output | [lexicon.tsv](cns11643/lexicon.tsv)：16,501 entries、311,786 bytes；SHA-256 `f279ff2faa8bc40814e300253cda97c162003a0b6650fdfa0484f4075d0b300a`。 |
+
+所有 checksums 均由本地計算，不是 publisher signature。保留原始列 bytes 的指定字區 snapshot，可離線重建；不依賴會變動的下載 URL。
+
+明確限制與處理：
+
+- CNS 單字 score 依字面與碼位順序產生，不稱為實測詞頻。
+- 保留原有五筆自製 phrase entries，逐字核對 CNS 讀音。忽略 fixture 的 34 筆單音節 entries，避免將測試讀音當成官方資料。
+- `2-3378 / 啐 / ˙ㄑ` 缺少完整音節，明確計入一筆 exclusion；不猜測成 `ㄑㄧ˙`。原始列保留於 snapshot，其他有效讀音仍保留該字。
+- `ㄧˋ` 有 154 個單字候選。Core 與 macOS snapshot checks 的上限調整為 256，以免舊 128 上限隱藏已匯入字音。
+- 本次僅建立開發資料與本機 bundle，不更新已安裝的 IME，不發布 artifact。產品詞庫品質、Taiwan phrase coverage、代表性效能與 native 驗收仍未通過。
 
 ## Unicode Unihan 17.0.0
 
@@ -227,4 +257,4 @@ README 記載 counts 由 1998 年收集的 Taiwan web pages 抽樣 1,200,000 頁
 5. 驗證 syllables、tone、重複 entries、缺失 reading 及無效 score。不得靜默為 phrase 猜測讀音，或把不同來源的 counts 當成可直接比較的 frequency。
 6. 保存 data notices，並查核產物的 license obligations 與現有 AGPL policy。取得 release 授權後才可發布。
 
-目前仍 blocked：可供產品使用且權利完整的 Traditional Chinese phrase lexicon、適合 Taiwan 使用情境的 phrase frequency、完整 notice bundle，以及可重建的正式 data artifact。Core 原型可用自製 fixture 繼續；產品品質、代表性 benchmark 與正式資料散布驗收不能據此通過。
+本次 CNS11643 單字補充不解除下列 blocked 項目：可供產品使用且權利完整的 Traditional Chinese phrase lexicon、適合 Taiwan 使用情境的 phrase frequency、完整 notice bundle，以及可重建的正式 data artifact。Core 原型可用自製 fixture 繼續；產品品質、代表性 benchmark 與正式資料散布驗收不能據此通過。

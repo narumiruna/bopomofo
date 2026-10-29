@@ -38,7 +38,9 @@ cargo run --release -p ime-cli -- benchmark fixtures/lexicon.tsv fixtures/limit-
 
 `build-lexicon` 驗證資料後，以固定順序匯出並回報 SHA-256。失敗時不覆寫既有產物。Native package 另附 checksum manifest，於初始化時檢查資料完整性。
 
-目前 `fixtures/lexicon.tsv` 是自製測試資料。Frequency 是人工數值，不是語料統計。它只能證明規則與工具行為，不能證明產品詞庫品質或代表性效能。
+`fixtures/lexicon.tsv` 保留為自製測試資料。macOS 預設開發 bundle 改用 CNS11643 Taiwan 常用／次常用字補充：13,052 字、16,496 字音 pairs，加上原有五筆自製詞組。資料來源、獨立授權與離線重建方式見 [CNS11643 guide](data/cns11643/README.md)。
+
+CNS 字音與 fixture scores 都不是實測 phrase frequency。此資料可補充單字候選，但不能證明正式詞組品質、代表性效能或 native IME 驗收。
 
 ## Platform builds and installation
 

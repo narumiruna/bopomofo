@@ -35,7 +35,7 @@ struct PresentationState {
         guard delivery > lastDelivery else { return nil }
         let next = output.snapshot
         let cursor = try TextRange.utf16Offset(in: next.preedit, utf8Offset: next.cursor)
-        guard next.page >= 0, next.candidateIndex >= 0, next.candidates.count <= 128,
+        guard next.page >= 0, next.candidateIndex >= 0, next.candidates.count <= 256,
               next.mode == "chinese" || next.mode == "latin",
               next.candidates.allSatisfy({ !$0.text.isEmpty && $0.start >= 0 && $0.end > $0.start && $0.end <= 64 }) else {
             throw AdapterError.invalidSnapshot

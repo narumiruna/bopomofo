@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
-LEXICON=${1:-"$ROOT/fixtures/lexicon.tsv"}
+DEFAULT_LEXICON="$ROOT/data/cns11643/lexicon.tsv"
+LEXICON=${1:-"$DEFAULT_LEXICON"}
 BUILD="$ROOT/platforms/macos/build"
 APP="$BUILD/Bopomofo Development.app"
 SDK=$(xcrun --sdk macosx --show-sdk-path)
@@ -21,6 +22,12 @@ xcrun --sdk macosx swiftc -sdk "$SDK" -target "$ARCH-apple-macosx13.0" -warnings
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$ROOT/platforms/macos/Info.plist" "$APP/Contents/Info.plist"
 cp "$LEXICON" "$APP/Contents/Resources/lexicon.tsv"
+rm -f "$APP/Contents/Resources/Lexicon-NOTICE.txt" "$APP/Contents/Resources/Lexicon-LICENSE.txt"
+cp "$ROOT/LICENSE" "$APP/Contents/Resources/Project-LICENSE.txt"
+if cmp -s "$LEXICON" "$DEFAULT_LEXICON"; then
+    cp "$ROOT/data/cns11643/NOTICE.txt" "$APP/Contents/Resources/Lexicon-NOTICE.txt"
+    cp "$ROOT/data/cns11643/LICENSE.txt" "$APP/Contents/Resources/Lexicon-LICENSE.txt"
+fi
 shasum -a 256 "$APP/Contents/Resources/lexicon.tsv" | awk '{print $1}' > "$APP/Contents/Resources/lexicon.sha256"
 "$BUILD/validate-library" "$APP/Contents/Resources/lexicon.tsv" "$APP/Contents/Resources/lexicon.sha256"
 xcrun --sdk macosx swiftc -sdk "$SDK" -target "$ARCH-apple-macosx13.0" \
