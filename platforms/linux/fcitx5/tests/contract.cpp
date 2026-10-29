@@ -381,8 +381,16 @@ void nativeApi(const std::string &lexiconPath, const std::string &checksumPath) 
 
 int main(int argc, char **argv) {
     try {
-        require(argc >= 4, "Pass lexicon, checksum, and replay paths");
         require(bpm_abi_version() == BPM_ABI_VERSION, "C ABI version mismatch");
+        if (argc >= 2 && std::string(argv[1]) == "--replay-only") {
+            require(argc >= 5, "Pass lexicon, checksum, and replay paths");
+            const auto lexicon = bopomofo::loadVerifiedLexicon(argv[2], argv[3]);
+            checksum(lexicon, argv[3]);
+            for (int i = 4; i < argc; ++i) { replay(lexicon, argv[i]); }
+            std::cout << "C++ ABI replay contracts passed\n";
+            return 0;
+        }
+        require(argc >= 4, "Pass lexicon, checksum, and replay paths");
         const auto lexicon = bopomofo::loadVerifiedLexicon(argv[1], argv[2]);
         mapping(); checksum(lexicon, argv[2]); abi(lexicon); unicode();
         for (int i = 3; i < argc; ++i) { replay(lexicon, argv[i]); }

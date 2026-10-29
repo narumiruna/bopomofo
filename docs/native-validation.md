@@ -42,6 +42,22 @@ Data：CNS version `20261028`，指定第一、第二字面中文字區。13,052
 
 正式 Taiwan phrase lexicon、實測 phrase frequency、代表性效能與產品 native acceptance 仍未通過。下方舊 snapshot 的證據保留作歷史紀錄，不覆蓋本節的限制。
 
+## CNS replay CI correction: 2026-10-29
+
+PR #3 的 commit `e6371c5` 在 [PR run 40833956582](https://github.com/narumiruna/bopomofo/actions/runs/40833956582) 與 [push run 40833931839](https://github.com/narumiruna/bopomofo/actions/runs/40833931839) 的 Linux x64／arm64 jobs 均失敗。失敗項目是 `adapter_contract` 的 `Replay output mismatch`，不是 build 或 ABI version。CMake 的 fixture glob 將 CNS replay 配到原有 39-entry 詞庫；Rust、macOS 與 Windows jobs 均通過。
+
+修正後，原有九份 shared fixture 與完整 adapter contracts 不變。CNS replay 改用自己的 lexicon 與 SHA-256 manifest，另加 `WILL_FAIL` CTest，驗證 CNS case 不接受錯誤的 39-entry 詞庫。只修改 test routing 與 test executable mode，不修改 runtime input behavior，不停用失敗的 regression。
+
+| Check | Result | Scope / limit |
+| --- | --- | --- |
+| Local Linux arm64 build / headless checks | Passed: 原有 `ci/check.sh` 路徑，6/6 CTests。 | Ubuntu 24.04、GCC 13.3、CMake 3.28.3、Fcitx5 5.1.7、xkbcommon 1.6.0、nlohmann_json 3.11.3、Rust 1.92.0；read-only source mount，無 desktop。 |
+| CNS C++ replay | Passed: 81 events，含 index 153 的尾端候選。 | 只驗證 C ABI／C++ decoder，不證明 native candidate rendering。 |
+| Wrong-lexicon regression | Passed: 錯誤配對被拒絕，與原 CI failure 對應。 | 這是預期失敗的 negative test，不是被忽略的失敗。 |
+| Rust checks | Passed: format、workspace Clippy warnings-as-errors、workspace debug 91 tests。 | 本次未修改 Rust source；不代替 Linux build。 |
+| Installed native IME / desktop checks | Not run. | 沒有安裝、註冊、啟用、移除或系統設定變更。Fcitx stale rendered-index gate 仍未通過。 |
+
+本機 Linux addon SHA-256：`d51afc8997aaef97159a35ddb59695ff21efa4a513c868ce131508fc02944248`；Rust release archive：`ea8b1aed85cfe3b64febe924f330943b5dbe9caf148e95f0258d7b09e1826fe5`。兩者識別本機 headless build，不是 signature trust 或 desktop support 聲明。修正後的 hosted CI 結果須以 PR 對應 source commit 的 checks 獨立確認。
+
 ## Reproducible checks
 
 在 repository root 執行。Windows clean checkout 先執行 `cargo build -p ime-windows --locked`；DLL loader test 需要同一 target／profile 的 DLL：

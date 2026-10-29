@@ -103,21 +103,36 @@ The base Ubuntu image is pinned by digest in `ci/Dockerfile`. The build download
 | Ubuntu 24.04 / Linux aarch64 / GCC 13.3 / CMake 3.28.3 / Rust 1.92.0 | Addon and contract executable built with warnings as errors. |
 | Fcitx5 5.1.7 / xkbcommon 1.6.0 / nlohmann_json 3.11.3 | Linked into an ELF64 AArch64 addon with `--no-undefined`. Factory symbol exported; Rust ABI symbols remain private. |
 | Build-time and CTest ABI version | Passed with header/library version 1. |
-| C++ ABI/replay/headless Fcitx API contract | Passed. Includes all `fixtures/*.jsonl`, checksum tampering/missing manifest, 100 repeated independent handle pairs, invalid event/UTF-8/null input, read-only probe, Unicode byte cursor, one-shot commit, native candidate page/digit/click, captured stale selection/pager, lifecycle, reset while Shift remains held, Enter aliases, remapped Ctrl/Escape/Caps positions, and immediate Sensitive-only capability cancellation without a key. |
+| C++ ABI/replay/headless Fcitx API contract | Passed. The nine shared fixture cases use the 39-entry lexicon; the CNS replay uses its own verified lexicon in a separate CTest. Includes checksum tampering/missing manifest, 100 repeated independent handle pairs, invalid event/UTF-8/null input, read-only probe, Unicode byte cursor, one-shot commit, native candidate page/digit/click, captured stale selection/pager, lifecycle, reset while Shift remains held, Enter aliases, remapped Ctrl/Escape/Caps positions, and immediate Sensitive-only capability cancellation without a key. |
 | C++ AddressSanitizer + UndefinedBehaviorSanitizer | Debug C++ build and CTest 4/4 passed with leak detection and halt-on-UB. Rust staticlib was a normal release build, not sanitizer-instrumented. |
 | Install/uninstall dry-run and Bash syntax | Passed. No apply operation ran. |
 | DBus delayed rendered-index selection | Known protocol gap reproduced by a controlled current-list lookup model. Not an end-to-end native test or safety pass; P6 remains blocked. |
 | Linux x86_64 build | Passed: native Ubuntu 24.04 CI build/ABI/4 CTests at `f65a705`. No desktop checks. |
 | Native addon load, X11/Wayland, toolkit/application integration | Unverified. No desktop session ran. |
 
-The C++ contract executable accepts a lexicon path, its manifest path, and one or more shared JSONL replay files:
+CMake registers six CTests: ABI version, the original adapter contracts, CNS replay, rejection of CNS replay with the wrong lexicon, and the two management dry runs. It removes `cns11643.jsonl` from the legacy fixture glob, not from coverage. Run the registered pairs with CTest:
 
 ```bash
-target/fcitx5/bopomofo_contract target/fcitx5/lexicon.tsv \
-  target/fcitx5/lexicon.sha256 fixtures/*.jsonl
+ctest --test-dir target/fcitx5 --output-on-failure
 ```
 
+The test-only `--replay-only` mode accepts a verified lexicon and its matching JSONL cases without running fixture-specific native API assertions. For a direct CNS replay check:
+
+```bash
+target/fcitx5/bopomofo_contract --replay-only \
+  target/fcitx5/cns-lexicon.tsv target/fcitx5/cns-lexicon.sha256 \
+  fixtures/cns11643.jsonl
+```
+
+Do not pass the complete `fixtures/*.jsonl` glob with one lexicon: the CNS case requires different data. The negative CTest is expected to reject the 39-entry lexicon.
+
 Each record supplies `event` and an `expect` subset of the core output. The runner compares expected fields; it does not regenerate expectations. Its mock input contexts call real Fcitx library APIs. A capability test calls the exact registered watcher handler directly because the standalone manager has no Instance event bus. These tests do not exercise a frontend, compositor, daemon addon loader, or application. Core tests, this platform build, and native desktop checks are separate evidence classes.
+
+### CNS replay pairing: 2026-10-29
+
+PR #3 runs [40833956582](https://github.com/narumiruna/bopomofo/actions/runs/40833956582) and [40833931839](https://github.com/narumiruna/bopomofo/actions/runs/40833931839) failed on Linux x86_64 and ARM64 because the fixture glob paired the CNS case with the 39-entry lexicon. Builds and ABI checks had passed; the replay failed with the fixed diagnostic `Replay output mismatch`.
+
+After separating the data pairs, the unchanged `ci/check.sh` path passed **6/6 CTests** in a local Ubuntu 24.04 aarch64 container with Fcitx5 5.1.7, GCC 13.3, CMake 3.28.3, and Rust 1.92.0. This preserves the original contracts, runs all 81 CNS events through the C++ ABI wrapper, and checks that the wrong-data pairing is rejected. Hosted x86_64/ARM64 results remain separate evidence in the PR checks. No native desktop check or install operation ran.
 
 ### Known DBus selection gap
 
