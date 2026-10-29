@@ -1,4 +1,5 @@
 mod benchmark;
+mod cns11643;
 mod files;
 mod replay;
 
@@ -13,6 +14,7 @@ const USAGE: &str = "Usage:
   ime-cli replay <lexicon.tsv> <case.jsonl>
   ime-cli validate-lexicon <file>
   ime-cli build-lexicon <input.tsv> <output.tsv>
+  ime-cli import-cns11643 <source-directory> <seed.tsv> <output.tsv>
   ime-cli benchmark <lexicon.tsv> <case.jsonl> <iterations>
 
 Replay expectations: object fields are subsets; arrays have equal lengths;
@@ -70,6 +72,7 @@ enum Command {
     Replay(PathBuf, PathBuf),
     ValidateLexicon(PathBuf),
     BuildLexicon(PathBuf, PathBuf),
+    ImportCns11643(PathBuf, PathBuf, PathBuf),
     Benchmark(PathBuf, PathBuf, usize),
 }
 
@@ -85,6 +88,11 @@ impl Command {
             ("build-lexicon", 3) => {
                 Self::BuildLexicon(args[1].clone().into(), args[2].clone().into())
             }
+            ("import-cns11643", 4) => Self::ImportCns11643(
+                args[1].clone().into(),
+                args[2].clone().into(),
+                args[3].clone().into(),
+            ),
             ("benchmark", 4) => {
                 let iterations = args[3]
                     .to_str()
@@ -94,7 +102,8 @@ impl Command {
                 Self::Benchmark(args[1].clone().into(), args[2].clone().into(), iterations)
             }
             (
-                "--help" | "-h" | "replay" | "validate-lexicon" | "build-lexicon" | "benchmark",
+                "--help" | "-h" | "replay" | "validate-lexicon" | "build-lexicon"
+                | "import-cns11643" | "benchmark",
                 _,
             ) => {
                 return Err(Error::arguments("invalid_argument_count"));
@@ -120,6 +129,10 @@ impl Command {
             }
             Self::BuildLexicon(input, destination) => {
                 let summary = files::build_lexicon(&input, &destination)?;
+                write_json(output, &summary)
+            }
+            Self::ImportCns11643(source, seed, destination) => {
+                let summary = cns11643::import(&source, &seed, &destination)?;
                 write_json(output, &summary)
             }
             Self::Benchmark(lexicon, case, iterations) => {

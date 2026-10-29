@@ -96,6 +96,38 @@ Linux addon 內含 build-local prefix，因此重新選取 temporary build path 
 
 先由 macOS tester 驗證 native text app，再擴到 browser／Electron／display cases。Windows 三個 process architectures 與 Linux 各 frontend 分開執行。共用 [`Unicode fixture`](../fixtures/unicode/cases.jsonl) 的 core cursor 是 11 UTF-8 bytes；macOS／Windows 預期為 6 UTF-16 code units。平台步驟見 [macOS](macos.md#authorized-native-smoke-test)、[Windows](windows.md#native-smoke-matrix) 與 [Linux](linux.md#native-validation-handoff)。
 
+## CNS11643 supplement: 2026-10-29
+
+本輪僅核准 CNS11643 資料補充與本機 build／tests。沒有安裝、更新、註冊、啟用、移除輸入法，也沒有修改系統設定或發布 artifact。McBopomofo 只更新來源紀錄，不匯入資料。
+
+Host：macOS **26.4.1 (25E253)**、**arm64**、Rust **1.92.0**、Apple Swift **6.3.3**、CLT SDK `/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk`。
+
+| Check | Result | Scope / limit |
+| --- | --- | --- |
+| Rust formatting / Clippy | Passed: `cargo fmt --all -- --check`；`cargo clippy --locked --workspace --all-targets -- -D warnings`。 | 不是 native 平台驗收。 |
+| Rust debug workspace | Passed: 91 tests，含 core 40、CLI 29、FFI 6、Windows portable 16。 | Windows DLL tests 在 macOS 不執行；portable tests 不是 Windows build。 |
+| Rust release workspace | Passed: 91 tests；core／CLI／FFI 共 75，另有 Windows portable 16。 | 同一 CNS snapshot 的 debug／release importer 與 replay 均通過；不是 Windows native build。 |
+| Reproducible data | Passed: 兩次 importer 產物與 summary 相同，與 retained `lexicon.tsv`／`build.json` 完全一致。 | Source manifest 是完整性檢查，不是來源簽章。 |
+| CNS replay | Passed: 81 events，涵蓋新增字音、`我`、`國`、`你好`、新 rimes，以及 index 153 的 `齸` 選取與一次 commit。 | 這是固定 regression corpus，不是代表性效能量測。 |
+| macOS arm64 bundle | Passed: release Rust archive、Swift link、plist、SHA-256、ad-hoc signature 與 strict signature verification。 | Deployment target 13.0 不是最低 OS 支援證據。 |
+| Swift contracts | Passed: 127 pure adapter assertions、122 actual C ABI assertions、16 management dry-run cases。 | Foundation-only tests，不建立 IMKServer session、不啟動輸入法、不執行 `--apply`。 |
+| Windows native build / Linux addon build | Not run for this source snapshot. | 不沿用先前 CI 結果宣稱本次 native build 已通過。 |
+| Installed native IME checks | Not run; requires separate authorization and manual native validation. | 候選上限改為 256；實際候選 rendering、mouse callback 與各 app／display 組合均未驗證。 |
+
+本次 source/build/data snapshot 為 99 個路徑，SHA-256 `2226dd2476b38ab027b2a5ce395bad21f99e27114a720e80538ad0e11a1ea363`。計算法：以 `git ls-files --cached --others --exclude-standard -z` 取得 `.gitattributes`、Cargo manifests／lock、toolchain、`crates/`、`platforms/`、`fixtures/`、`data/cns11643/`，排除 `.DS_Store`，按路徑排序，逐筆串接 `path + NUL + contents + NUL` 後取 SHA-256。
+
+Data：CNS version `20261028`，指定第一、第二字面中文字區。13,052 characters、16,496 character-reading pairs，加五筆自製 phrases，共 16,501 entries。上游不完整的 `2-3378 / ˙ㄑ` 保留在 source snapshot 並明確排除一筆，不猜讀音。
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Default lexicon | `f279ff2faa8bc40814e300253cda97c162003a0b6650fdfa0484f4075d0b300a` |
+| Bundled lexicon manifest | `5a23a538e9f6e20ba5690225b2ac2a8cada5cb97ff78070dcf82436a5dac14e5` |
+| macOS executable | `3deb61e089bc2b5fb867e192164f9161cf471516cd80045223818066986564ee` |
+
+來源、授權、保留的原始字區、輸出 checksum、人工分數與已知限制見 [CNS guide](../data/cns11643/README.md)。Native tester 須另行取得 installed update／activation 授權，驗證實際候選面板、`ㄧˋ` 尾頁、focus 與 app 相容性。Data maintainer 可在授權後向 upstream 回報不完整讀音；本次未對外提交。
+
+正式 Taiwan phrase lexicon、實測 phrase frequency、代表性效能與產品 native acceptance 仍未通過。下方舊 snapshot 的證據保留作歷史紀錄，不覆蓋本節的限制。
+
 ## Reproducible checks
 
 在 repository root 執行。Windows clean checkout 先執行 `cargo build -p ime-windows --locked`；DLL loader test 需要同一 target／profile 的 DLL：
