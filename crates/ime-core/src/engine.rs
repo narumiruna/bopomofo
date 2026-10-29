@@ -7,7 +7,7 @@ use crate::{
 };
 use std::{collections::BTreeMap, sync::Arc};
 
-const MAX_CANDIDATES: usize = 128;
+const MAX_CANDIDATES: usize = crate::lexicon::MAX_CANDIDATES_PER_READING;
 
 /// One context's mutable composition. The immutable lexicon may be shared.
 #[derive(Clone)]

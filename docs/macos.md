@@ -2,7 +2,7 @@
 
 The development bundle builds with Command Line Tools (CLT). Native IME behavior is **unverified**. No installation, registration, input-source selection, or native UI test was performed.
 
-This host implements the P1 bundle spike and the P4 adapter. It uses the shared Rust engine, not a second input engine. The bundled self-authored fixture is not a production lexicon.
+This host implements the P1 bundle spike and the P4 adapter. It uses the shared Rust engine, not a second input engine. The default bundle uses the CNS11643 Taiwan common/less-common character supplement and five self-authored phrases. This is not a production phrase lexicon.
 
 ## Build and checks
 
@@ -19,7 +19,9 @@ To use a different approved lexicon:
 bash platforms/macos/scripts/build.sh /absolute/path/to/approved-lexicon.tsv
 ```
 
-Confirm its source and license before use. The default is `fixtures/lexicon.tsv`; see [data sources](../data/SOURCES.md) and [fixture notes](../fixtures/README.md).
+Confirm its source and license before use. The default is `data/cns11643/lexicon.tsv`; see the [CNS11643 guide](../data/cns11643/README.md) and [data sources](../data/SOURCES.md). The default data has 13,052 characters, 16,496 character-reading pairs, and five self-authored phrases. Scores are artificial, not measured phrase frequencies.
+
+The build includes the default data attribution and OGDL-Taiwan-1.0 text as `Lexicon-NOTICE.txt` and `Lexicon-LICENSE.txt`. It also includes `Project-LICENSE.txt`. CNS notices are included only when the selected bytes match the default CNS lexicon. A different external lexicon still needs its own approved notices before distribution.
 
 - The build uses `xcrun --sdk macosx swiftc` and the CLT SDK. It does not use `xcodebuild`.
 - Rust builds `target/release/libime_ffi.a`. Swift imports `crates/ime-ffi/include/bopomofo.h` as its bridging header.
@@ -30,7 +32,7 @@ Confirm its source and license before use. The default is `fixtures/lexicon.tsv`
 - `platforms/macos/build/build-evidence.txt` records the architecture, SDK, compiler, and executable/lexicon SHA-256 values. Build files are ignored by Git.
 - Signing with a distribution identity, notarization, universal builds, and publication are outside this task.
 
-`test.sh` runs noninteractive Swift logic tests, rebuilds the bundle, runs Swift-to-C-ABI tests, checks Bash syntax, and runs management-script dry runs. Test executables use Foundation only. They do not create an `IMKServer`, open native windows, or register an input source.
+`test.sh` runs noninteractive Swift logic tests, builds a fixture bundle and saves its checksum, then rebuilds the default CNS bundle. Swift-to-C-ABI tests use both datasets independently. The script also checks Bash syntax and runs management-script dry runs. Test executables use Foundation only. They do not create an `IMKServer`, open native windows, or register an input source.
 
 ### Evidence
 
@@ -47,6 +49,24 @@ Recorded on 2026-10-28 with macOS 26.6.2 (25G83), arm64, Apple Swift 6.4, and `/
 | Installed native IME checks | Not run. No authorization to install, register, enable, update, or remove an IME was used. |
 
 No remaining build failure was observed. Native loading, native callback delivery, and application/display compatibility remain blocked on authorized manual validation.
+
+### CNS11643 checks: 2026-10-29
+
+Recorded on macOS **26.4.1 (25E253)**, **arm64**, Rust **1.92.0**, and Apple Swift **6.3.3** with the CLT SDK:
+
+| Check | Result |
+| --- | --- |
+| Default CNS bundle | Passed: Rust release archive, Swift link, plist, lexicon checksum, ad-hoc signature, and strict signature verification. |
+| Standalone adapter logic | Passed: 127 assertions, including the 256-candidate bound and final-page indices. |
+| Swift-to-C-ABI integration | Passed: 122 assertions across fixture and actual CNS data, including new rimes, `我`, `國`, all 154 `ㄧˋ` candidates, final-page `齸` selection, one-time commit, and bundled notices. |
+| Management checks | Passed: Bash syntax and 16 sandbox dry-run cases. No `--apply` command ran. |
+| Installed/native UI | Not run. No installed-bundle update, registration, activation, or settings change was performed by this task. |
+
+Default lexicon SHA-256: `f279ff2faa8bc40814e300253cda97c162003a0b6650fdfa0484f4075d0b300a`.
+
+Built executable SHA-256: `3deb61e089bc2b5fb867e192164f9161cf471516cd80045223818066986564ee`.
+
+Rebuilding does not update the installed bundle. An authorized tester must follow the management steps separately and record native results for this source/data snapshot. Prior fixture-only evidence does not establish acceptance of the new data.
 
 ## Adapter boundary
 
@@ -105,7 +125,7 @@ Core cursor positions are UTF-8 byte offsets at Unicode scalar boundaries. The a
 
 A commit is an event output, not snapshot state. The adapter consumes each delivery once, then calls native `insertText` once. It does not clear existing marked text before a commit replaces it. Unchanged snapshots produce no repeated native text effect.
 
-Candidate display uses the system `IMKCandidates` panel. The snapshot contains all bounded candidates; the adapter displays the current page of up to nine entries. Selection indexes remain absolute indexes into the snapshot.
+Candidate display uses the system `IMKCandidates` panel. The snapshot contains up to 256 candidates; the adapter displays the current page of up to nine entries. Selection indexes remain absolute indexes into the snapshot.
 
 Each attributed candidate carries a publication UUID, the exact UInt64 generation, and its absolute index. A final callback must match the active context, current publication, generation, index, and text. The token is invalidated before dispatch. Old, duplicate, missing-attribute, or modified callbacks are ignored. There is no fallback that matches text alone. Native highlight callbacks do not select or commit.
 
@@ -178,7 +198,9 @@ No row below is passed. Record the OS/build, CPU architecture, app/version, exec
    - Press Caps Lock through both latch changes. Each transition must change mode once, not twice.
    - Check repeat and key-up behavior. Shortcuts such as Command+A/C/V must pass through unchanged; the IME must not access the clipboard itself.
 7. Test a secure/password field and an app field that disables IME. Respect the app restriction; do not use a fallback input path.
-8. For Unicode checks, build with an approved self-authored test lexicon containing non-BMP Han, emoji, and combining output. Check marked text, caret movement, candidate selection, reset, and single commit. The default fixture does not contain that Unicode coverage.
+8. For Unicode checks, build with an approved self-authored test lexicon containing non-BMP Han, emoji, and combining output. Check marked text, caret movement, candidate selection, reset, and single commit. The default CNS supplement does not contain that Unicode coverage.
+
+With the default CNS data, also test `j i 3` → marked `我`, and `u 4 Down` → 154 candidates. Page Down 17 times, then press `1`: expected marked `齸`. Enter must commit it once. Check the tail page with the mouse as a separate native callback test. These results remain unverified.
 
 ### Pending application and display matrix
 

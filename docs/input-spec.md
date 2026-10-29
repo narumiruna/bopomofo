@@ -48,6 +48,8 @@ Adapter 傳送標準化小寫 key 名稱與 `ctrl`、`alt`、`meta`、`shift`、
 
 Dachen phonetic mapping 為 `1/q/a/z/2/w/s/x/e/d/c/r/f/v/5/t/g/b/y/h/n/u/j/m/8/i/k/,/9/o/l/./0/p/;/\u002f/-`，分別對應 `ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙㄧㄨㄩㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦ`。
 
+Parser 包含 CNS11643 字音需要的 `ㄆㄧㄚ`、`ㄈㄧㄠ`、`ㄋㄨㄟ`、`ㄌㄩㄢ` 與 `ㄙㄟ`。來源與排除的不完整讀音見 [CNS guide](../data/cns11643/README.md)。
+
 同類 phonetic slot 可替換，但不得形成無法完成的音節。遭拒的輸入保留原有 buffer。Backspace 刪除最後一個 phonetic slot。合法音節與 slot 替換由 parser table tests 固定。
 
 | Tone | Key | Canonical example |
@@ -61,6 +63,8 @@ Dachen phonetic mapping 為 `1/q/a/z/2/w/s/x/e/d/c/r/f/v/5/t/g/b/y/h/n/u/j/m/8/i
 Canonical 第一聲不附符號。Parser 接受明示 `ˉ` 與前置 `˙` 並正規化。Tone key 只能結束目前音節，不把不完整聲母當成完整音節。
 
 ## Editing and selection
+
+下表的字詞預期值使用自製 `fixtures/lexicon.tsv`。CNS11643 的資料相依預期值另由 `fixtures/cns11643.jsonl` 驗證；輸入規則不因詞庫而改變。
 
 | State / key | Result | Replay example and expected output |
 | --- | --- | --- |
@@ -85,7 +89,7 @@ Canonical 第一聲不附符號。Parser 接受明示 `ˉ` 與前置 `˙` 並正
 | Unknown reading | 顯示原始 canonical Zhuyin，不刪除 | `q 8 space` → preedit `ㄆㄚ`，status UnknownReading。 |
 | Invalid syllable / tone | consumed，保留目前 raw buffer | `1 3` → preedit `ㄅ`，status InvalidSyllable。 |
 
-每頁最多 9 個候選。Candidate index 是整份候選清單的 absolute index。候選總數與搜尋 span 有固定上限。Cursor 位於 composition 結尾時，候選 anchor 為最後一個音節；否則使用 cursor 處的音節。選詞組前可先用 `home` 移至起點。
+每頁最多 9 個候選，每份 snapshot 最多 256 個。Candidate index 是整份候選清單的 absolute index。搜尋 span 有固定上限。Cursor 位於 composition 結尾時，候選 anchor 為最後一個音節；否則使用 cursor 處的音節。選詞組前可先用 `home` 移至起點。
 
 選取事件必須帶目前 snapshot 的 `generation`。過期 generation 回報 StaleSelection，且不改變 composition。重新 reset 或重讀 snapshot 不得重送 commit。
 

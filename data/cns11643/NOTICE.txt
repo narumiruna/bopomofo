@@ -1,0 +1,39 @@
+CNS11643 data attribution
+
+數位發展部，2026，
+CNS11643中文標準交換碼全字庫，資料版本 20261028。
+來源：數位發展部，CNS11643中文標準交換碼全字庫網站，
+https://www.cns11643.gov.tw。
+
+此開放資料依政府資料開放授權條款
+(Open Government Data License) 進行公眾釋出，
+使用者於遵守本條款各項規定之前提下，得利用之。
+政府資料開放授權條款：https://data.gov.tw/license
+
+Publisher: Ministry of Digital Affairs, Taiwan.
+Dataset: https://data.gov.tw/dataset/5961
+Data license selected: Open Government Data License, version 1.0
+(SPDX: OGDL-Taiwan-1.0). See Lexicon-LICENSE.txt in the macOS bundle,
+or LICENSE.txt beside this notice in the repository.
+The dataset permits this license OR OFL-1.1. This data-only use selects
+OGDL-Taiwan-1.0, not the font license.
+
+Changes made by bopomofo:
+- Retain only CNS plane 1 character codes 4421–7D4B and plane 2 codes
+  2121–7245, joined to the official Unicode BMP mappings.
+- Normalize first/neutral tone notation through the shared Rust parser.
+- Exclude the published incomplete reading 2-3378 / 啐 / ˙ㄑ.
+  Do not guess a replacement reading.
+- Assign fixed fallback scores by CNS plane and code order, not measured
+  character or phrase frequencies.
+- Export canonical bopomofo-lexicon-v1 TSV.
+
+The five seed phrases come from this project's self-authored
+fixtures/lexicon.tsv under AGPL-3.0-only. Their scores are artificial.
+They are not CNS11643 phrase or frequency data.
+The project code remains AGPL-3.0-only. CNS11643 data retains the
+separate data license and attribution above.
+
+No official endorsement, production lexicon quality, complete Taiwan
+character coverage, representative performance, or native IME acceptance
+is claimed. The source provider gives no accuracy or completeness warranty.

@@ -73,8 +73,19 @@ if(BUILD_TESTING)
     target_link_libraries(bopomofo_contract PRIVATE bopomofo_adapter)
     target_compile_options(bopomofo_contract PRIVATE -Wall -Wextra -Wpedantic -Werror)
     file(GLOB REPLAY_FIXTURES CONFIGURE_DEPENDS "${REPOSITORY_ROOT}/fixtures/*.jsonl")
+    # The CNS replay requires its own lexicon, not the 39-entry fixture.
+    set(CNS_REPLAY "${REPOSITORY_ROOT}/fixtures/cns11643.jsonl")
+    list(REMOVE_ITEM REPLAY_FIXTURES "${CNS_REPLAY}")
     add_test(NAME adapter_contract COMMAND bopomofo_contract "${CMAKE_BINARY_DIR}/lexicon.tsv"
         "${CMAKE_BINARY_DIR}/lexicon.sha256" ${REPLAY_FIXTURES})
+    configure_file("${REPOSITORY_ROOT}/data/cns11643/lexicon.tsv" cns-lexicon.tsv COPYONLY)
+    file(SHA256 "${CMAKE_BINARY_DIR}/cns-lexicon.tsv" CNS_LEXICON_SHA256)
+    file(WRITE "${CMAKE_BINARY_DIR}/cns-lexicon.sha256" "${CNS_LEXICON_SHA256}\n")
+    add_test(NAME cns_replay COMMAND bopomofo_contract --replay-only
+        "${CMAKE_BINARY_DIR}/cns-lexicon.tsv" "${CMAKE_BINARY_DIR}/cns-lexicon.sha256" "${CNS_REPLAY}")
+    add_test(NAME cns_replay_wrong_lexicon COMMAND bopomofo_contract --replay-only
+        "${CMAKE_BINARY_DIR}/lexicon.tsv" "${CMAKE_BINARY_DIR}/lexicon.sha256" "${CNS_REPLAY}")
+    set_tests_properties(cns_replay_wrong_lexicon PROPERTIES WILL_FAIL TRUE)
     add_test(NAME install_dry_run COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install.sh" "${CMAKE_BINARY_DIR}")
     add_test(NAME uninstall_dry_run COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/scripts/uninstall.sh" "${CMAKE_BINARY_DIR}")
 endif()
