@@ -6,7 +6,7 @@ The addon builds on **Linux aarch64, Ubuntu 24.04, Fcitx5 5.1.7** in an isolated
 
 No IME was installed, enabled, or removed. No host settings were changed. All X11, Wayland, application, and x86_64 desktop combinations remain **unverified**. The fixture lexicon is not a production lexicon. See [native-validation.md](native-validation.md) for the project evidence register.
 
-**Open P6 blocker:** Fcitx5 5.1.7 DBus `SelectCandidate(int)` has no render generation. A delayed client-side UI index is resolved against the current list. Captured `CandidateWord` guards do not protect this path. A headless model reproduces the gap; an end-to-end native delayed-click check has not run. The follow-up audit of release 5.1.23 and current tagged GTK/Qt clients found no generation-aware selection or sufficient ordering guarantee. Pinned sources and hashes are in [native-validation.md](native-validation.md). P6 and native acceptance remain open.
+**Open P6 blocker:** Fcitx5 5.1.7 DBus `SelectCandidate(int)` has no render generation. A delayed client-side UI index is resolved against the current list. Captured `CandidateWord` guards do not protect this path. The independent `known_gap_reproduced_dbus_stale_rendered_index` CTest reproduces the known gap; it is not a safety pass. Source checks of 5.1.23 and the pinned GTK/Qt clients found no generation-aware selection or sufficient ordering guarantee. See the [minimal upstream report](#known-dbus-selection-gap) below. P6 and native acceptance remain open.
 
 ## Adapter boundary
 
@@ -103,10 +103,10 @@ The base Ubuntu image is pinned by digest in `ci/Dockerfile`. The build download
 | Ubuntu 24.04 / Linux aarch64 / GCC 13.3 / CMake 3.28.3 / Rust 1.92.0 | Addon and contract executable built with warnings as errors. |
 | Fcitx5 5.1.7 / xkbcommon 1.6.0 / nlohmann_json 3.11.3 | Linked into an ELF64 AArch64 addon with `--no-undefined`. Factory symbol exported; Rust ABI symbols remain private. |
 | Build-time and CTest ABI version | Passed with header/library version 1. |
-| C++ ABI/replay/headless Fcitx API contract | Passed. Includes all `fixtures/*.jsonl`, checksum tampering/missing manifest, 100 repeated independent handle pairs, invalid event/UTF-8/null input, read-only probe, Unicode byte cursor, one-shot commit, native candidate page/digit/click, captured stale selection/pager, lifecycle, reset while Shift remains held, Enter aliases, remapped Ctrl/Escape/Caps positions, and immediate Sensitive-only capability cancellation without a key. |
-| C++ AddressSanitizer + UndefinedBehaviorSanitizer | Debug C++ build and CTest 4/4 passed with leak detection and halt-on-UB. Rust staticlib was a normal release build, not sanitizer-instrumented. |
+| C++ ABI/replay/headless Fcitx API contract | Passed with 9 `fixtures/*.jsonl` files / 358 replay records. Includes checksum tampering/missing manifest, 100 repeated independent handle pairs, invalid event/UTF-8/null input, read-only probe, Unicode byte cursor, one-shot commit, native candidate page/digit/click, captured stale selection/pager, lifecycle, reset while Shift remains held, Enter aliases, remapped Ctrl/Escape/Caps positions, and immediate Sensitive-only capability cancellation without a key. |
+| C++ AddressSanitizer + UndefinedBehaviorSanitizer | Clean Debug C++ build and CTest 5/5 passed with leak detection and halt-on-error. The independent known-gap case also reproduced the gap, 1/1. Rust staticlib and system SDK libraries were not sanitizer-instrumented. |
 | Install/uninstall dry-run and Bash syntax | Passed. No apply operation ran. |
-| DBus delayed rendered-index selection | Known protocol gap reproduced by a controlled current-list lookup model. Not an end-to-end native test or safety pass; P6 remains blocked. |
+| DBus delayed rendered-index selection | `known_gap_reproduced_dbus_stale_rendered_index`: known gap reproduced by the existing controlled current-list lookup model. Not an end-to-end native test or safety pass; P6 remains blocked. |
 | Linux x86_64 build | Passed: native Ubuntu 24.04 CI build/ABI/4 CTests at `f65a705`. No desktop checks. |
 | Native addon load, X11/Wayland, toolkit/application integration | Unverified. No desktop session ran. |
 
@@ -121,13 +121,94 @@ Each record supplies `event` and an `expect` subset of the core output. The runn
 
 ### Known DBus selection gap
 
-The contract suite separately models Fcitx5 5.1.7 `selectCandidate(int)`. It captures a page-relative rendered index, resets and replaces the list, then resolves that old index against the current list as the DBus frontend does. The selected current `CandidateWord` has a fresh core generation, so core cannot identify the old UI action. A stale captured old `CandidateWord` is rejected in the same model; these are different paths.
+#### Minimal upstream report (not submitted)
 
-The model only reproduces a known limitation. It does not validate a DBus client, delayed delivery, desktop frontend, or application. End-to-end stale client-side UI safety needs a framework/client generation contract or an explicitly approved design change. This addon does not change the Fcitx protocol, disable native clicks, or add a custom candidate window. Keep the P6/native gate open.
+**Subject:** Index-only `SelectCandidate` can select a replacement list instead of the rendered list.
+
+**Scope:** This is one controlled headless model, extracted from the existing contract suite. It uses the real addon and Fcitx candidate APIs, but models the frontend's current-list lookup without DBus. No DBus client, daemon, desktop, or application ran. No remote issue was created. Addon selection policy and native click behavior are unchanged.
+
+Pinned source files were checked again for this report. The 5.1.23 and client checks are source inspection, not runtime results. These pins do not claim to be the latest releases.
+
+| Component / pinned revision | Inspected source | File SHA-256 |
+| --- | --- | --- |
+| Fcitx5 5.1.7 / `8274ece8224c78d338b5773f8a035b2b8eeb80a3` | [dbusfrontend.cpp](https://github.com/fcitx/fcitx5/blob/8274ece8224c78d338b5773f8a035b2b8eeb80a3/src/frontend/dbusfrontend/dbusfrontend.cpp#L367-L376) | `a2aa51432a2d77f673653da3a9060f9d2ed1d091c661f80d8b4d53af4ecf1ebf` |
+| Fcitx5 5.1.23 / `27cca6e0239938b2d53937061d0980c087856b22` | [dbusfrontend.cpp](https://github.com/fcitx/fcitx5/blob/27cca6e0239938b2d53937061d0980c087856b22/src/frontend/dbusfrontend/dbusfrontend.cpp#L403-L412) | `48c1bb1aa3e6446804fe906312488c07e0f5a066be0910440af9884281b51194` |
+| fcitx5-gtk 5.1.7 / `3b18d2ab7401d4233daf38bbc5896f1703685a43` | [fcitxgclient.c](https://github.com/fcitx/fcitx5-gtk/blob/3b18d2ab7401d4233daf38bbc5896f1703685a43/fcitx-gclient/fcitxgclient.c#L560-L571) | `f56801ef951b007c674828fb0cfc73e7f82c8dec7a2db2ee5909e9199049bd96` |
+| fcitx5-qt 5.1.16 / `115750044f3d0db16ca5859808c7da830fd1ff52` | [Qt5 fcitxqtinputcontextproxyimpl.h](https://github.com/fcitx/fcitx5-qt/blob/115750044f3d0db16ca5859808c7da830fd1ff52/qt5/dbusaddons/fcitxqtinputcontextproxyimpl.h#L109-L114) | `6c0b55eda4abe66289644d7d75d4997d51a08452aa1963943034f006cf9b8f26` |
+
+Both framework files resolve the index through the **current** `inputPanel().candidateList()` with `nthCandidateIgnorePlaceholder`. This addon's lists have no placeholder rows, so the model uses `candidate(index)`. Their DBus input signature is `i`. Their `UpdateClientSideUI` signature is `a(si)ia(si)a(si)a(ss)iibb`, without a view generation or render acknowledgement. The GTK and Qt5 methods send asynchronous index-only calls. `KeyEventOrderFix` wraps key-event processing; it does not bind candidate clicks to a rendered list. Upgrading to the checked 5.1.23 source does not establish stale rendered-click safety.
+
+#### Independent reproduction
+
+From the repository root, use the existing headless image. This builds in an empty container directory and runs only the known-gap case; no replay arguments are needed.
+
+```bash
+docker run --rm \
+  --mount "type=bind,source=$PWD,target=/src,readonly" \
+  bopomofo-fcitx5-check bash -euo pipefail -c '
+    cmake -S /src/platforms/linux/fcitx5 -B /tmp/fcitx5-gap -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release
+    cmake --build /tmp/fcitx5-gap --target bopomofo_contract --parallel 2
+    ctest --test-dir /tmp/fcitx5-gap \
+      -R "^known_gap_reproduced_dbus_stale_rendered_index$" --verbose
+  '
+```
+
+The same CTest command works with the normal build directory in place of `/tmp/fcitx5-gap`. The executable also accepts `--known-gap-reproduced lexicon-path checksum-path`.
+
+1. Open `ㄅㄚ` candidates and advance to page 1. Capture the rendered list and page-relative index 0, whose text is `豝`.
+2. Reset the context. Open the new `ㄅㄚ` list at page 0. Current index 0 is now `八`.
+3. Call the captured old `CandidateWord`. It has the old generation and must not change the current composition or list.
+4. Resolve the old rendered index 0 against the current list, as the DBus frontend does. The new `CandidateWord` has a valid current generation. It selects `八` and closes the current candidate list. Selection does not commit text.
+
+| Path | Required stale-action result | Observed model result |
+| --- | --- | --- |
+| Captured old `CandidateWord` | Reject; current composition/list unchanged; no commit. | Rejected. The current page, cursor, first candidate, and preedit stay unchanged; no commit. |
+| Old rendered index resolved against current list | Reject the old UI action; do not select a replacement row. | **Known gap reproduced:** selects current `八`, not rendered `豝`; current list closes; no commit. |
+
+Expected reproducer output:
+
+```text
+Captured old CandidateWord: rejected; current composition/list unchanged; no commit
+known gap reproduced: old rendered index selects CURRENT list; native safety remains blocked
+```
+
+Exit 0 means that the known gap was reproduced, not that stale rendered clicks are safe. The CTest name and `known-gap` label retain this distinction.
+
+#### Responsibility and required contract
+
+| Owner | Responsibility |
+| --- | --- |
+| Framework / DBus frontend | Define which published list a selection addresses. Reject stale actions before current-list lookup, or provide an equally testable contract. Preserve context and list identity across reset, paging, and focus changes. |
+| Client / candidate UI | Bind each action to the list that supplied the rendered row. Define when updates become visible and what happens to queued and in-flight actions. Do not attach the newest identity to an old action. |
+| Addon / Rust core | Validate captured generation, absolute candidate index, context, and engine lifetime. Preserve core selection and commit rules. A fresh current `CandidateWord` cannot reveal which older UI generated an index-only request. |
+
+The following interleaving needs no out-of-order DBus delivery. It is a model of the risk, not a captured native trace.
+
+```mermaid
+sequenceDiagram
+    participant Client as Client candidate UI
+    participant Framework as Fcitx DBus frontend
+    participant Addon as Addon
+    Client->>Client: Render list A
+    Addon->>Framework: Replace current list with B
+    Framework-->>Client: UpdateClientSideUI(B), not yet rendered
+    Client->>Framework: SelectCandidate(0) from A
+    Framework->>Addon: Select current B[0]
+    Note over Framework,Addon: B has a valid current core generation
+```
+
+The framework/client owner must supply a verifiable contract before the safety gate can close:
+
+1. A generation-aware contract must identify the **rendered** view used by the action, not only the last update sent or received. It must define stale rejection across list, context, and lifecycle changes.
+2. A render acknowledgement must define when rendering is complete and how queued or in-flight old actions are rejected. A message receipt or key-event reply alone is not a render acknowledgement.
+3. An ordering-only alternative must prove the relation between server list replacement, actual client rendering, and action delivery in both directions. FIFO transport alone is insufficient.
+
+A native delayed-click regression must then verify the agreed contract on each tested frontend route. Until then, P6 and Linux native acceptance remain blocked. This report does not change the protocol, replace old actions with new tokens, disable clicks, or add a custom candidate window.
 
 ### C++ sanitizer check
 
-The initial Debug C++ sanitizer check used these flags in the same Linux container. A later RelWithDebInfo adapter-contract check also passed the new 16-record `ui-abort.jsonl` case. Both checks leave Rust uninstrumented; neither is a desktop result.
+The Section E recheck used a clean Debug C++ build in the same Linux image. All 5 CTests passed, including 9 shared replay files / 358 records and the independent known-gap reproducer. The reproducer also ran alone. The Rust archive is still a normal release build; system SDK libraries are also uninstrumented. This is not a desktop result.
 
 ```bash
 cmake -S platforms/linux/fcitx5 -B target/fcitx5-sanitized -G Ninja \
@@ -136,9 +217,32 @@ cmake -S platforms/linux/fcitx5 -B target/fcitx5-sanitized -G Ninja \
   '-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined' \
   '-DCMAKE_SHARED_LINKER_FLAGS=-fsanitize=address,undefined'
 cmake --build target/fcitx5-sanitized --parallel 2
-ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 \
+ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
   ctest --test-dir target/fcitx5-sanitized --output-on-failure
 ```
+
+### Section E evidence — 2026-11-04 UTC
+
+- Source: base `23d14acf2439baba1da01fc1f9f0cc6a60e0e4fb` plus shared working-tree changes. The tested Linux/Rust/header/root-fixture input hashes were unchanged before and after all checks. Input-list SHA-256: `945111e218e6b541bb8d846f85b2f182ecba6c40f19795059f9d46f5688da38f`. Unrelated documents/scripts and separate-lexicon fixtures are outside this build's scope.
+- Tested `contract.cpp` SHA-256: `cf4fc1a5d945177f0339a8fa3f7eb3a0d60bea58dcf01bf8cfbc6258e7d4a987`; `CMakeLists.txt`: `83338569d2650cf65bcd1ba6fa6d52f675a8a0dfc7d3a4ebaecaaa4207b2e78e`.
+- Runner: Docker 29.4.0 / OrbStack on macOS arm64; container Ubuntu 24.04.5 LTS / Linux aarch64. Dockerfile rebuild succeeded with cached dependency layers. Image ID: `sha256:edc8a252f7acadb512ae73fe5fa84deacfd8055cb5bd0a5b56bb76d534356ffb`. Each source build started in an empty temporary directory with a read-only source mount.
+- Tools/SDK: GCC 13.3.0, CMake 3.28.3, Cargo/rustc 1.92.0 (`ded5c06cf`), Fcitx Core/Config/Utils dev `5.1.7-1build3`, xkbcommon dev `1.6.0-1build1`, nlohmann_json `3.11.3-1`. ASan/UBSan runtime packages: `14.2.0-4ubuntu2~24.04.1`.
+- Results: clean Release **5/5**; clean Debug C++ ASan/UBSan **5/5**; independent known-gap run **1/1 in each profile**. The documented minimal Docker reproducer also reproduced the gap, **1/1**. The unchanged `ci/check.sh` entry point passed **5/5** and Bash syntax checks. Each full adapter contract replayed **9 files / 358 records** and checked 100 independent handle pairs. Build-time and runtime ABI version checks passed, version 1. No agent check failed or was blocked.
+- Sanitizer scope: C++ adapter and test translation units used `-fsanitize=address,undefined -fno-omit-frame-pointer`; ELF dependencies include `libasan.so.8` and `libubsan.so.1`. Leak detection and halt-on-error were enabled. **The Rust archive and system SDK libraries were not instrumented.** No sanitizer error was reported.
+- Not run: native addon load, DBus client/render timing, X11/Wayland, installed IME, application matrix, or a new x86_64 build. **Blocked:** stale rendered-click safety and Linux native acceptance. No install, activation, removal, desktop, or system-setting operation ran.
+
+| Artifact / record | SHA-256 |
+| --- | --- |
+| Clean Release `libbopomofo-dev.so` | `482eaf5174622ccd52912c14c6528d38a04249f3b2bd07a817e30953ea8a632c` |
+| Clean C++ ASan/UBSan `libbopomofo-dev.so` | `699163a6c788d18470e01d36c1dcba96767fd45a3fd41f8dfbe72073f487b421` |
+| Rust release `libime_ffi.a`, both profiles | `0c7e94cf93b9674b1d3f6a6e55aa2456894d46c109d75692b47fe7e37f10c1ab` |
+| C ABI header `bopomofo.h` | `6a2480cbae7000618cba390a3932998595570a90f1a5729f4baab3bb93ff3167` |
+| Fixture `lexicon.tsv` | `c54ced5e1e44472337f9bb5c5b8fe41e7a692a33dbfa8d360991704888f11dcd` |
+| Generated `lexicon.sha256` | `214a4ecdd73e1f785995dacaaad733b7796cd765819a159bb0524c0482e59f84` |
+| Clean-build/sanitizer log `e2-clean.log` | `54c6b3e3877fc0d40e02df4092d426042107056b4ba2ba382b3fe5711e983a63` |
+
+The addon files are ELF64 AArch64, with `fcitx_addon_factory_instance` exported and Rust ABI symbols private. These hashes identify individual builds, not reproducible paths or native acceptance. Raw logs, input manifests, CTest XML, and full executable hashes stay in ignored `target/ime-readiness-evidence/linux-section-e/`. No binary is retained in Git.
 
 ## Scoped install, update, and removal
 
@@ -190,6 +294,19 @@ Record each CPU separately: **aarch64** and **x86_64**. Start with Ubuntu 24.04 
 
 A Wayland result is specific to its compositor and protocol. A GTK module result does not validate compositor text-input. A browser result does not validate Electron. A Qt5 result does not validate Qt6. Verify the actual window backend; a Wayland session alone is not evidence of a native Wayland client.
 
+### Unicode fixture staging
+
+Use the self-authored [Unicode lexicon](../fixtures/unicode/lexicon.tsv) and [11-record replay](../fixtures/unicode/cases.jsonl) for the Unicode native check. Keep this staging build separate from the default lexicon build:
+
+```bash
+cmake -S platforms/linux/fcitx5 -B target/fcitx5-unicode -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  "-DBOPOMOFO_LEXICON=$PWD/fixtures/unicode/lexicon.tsv"
+cmake --build target/fcitx5-unicode --parallel 2
+```
+
+These commands only build artifacts. They do not install or activate an IME. The normal `adapter_contract` uses the default lexicon's replay expectations; do not run that suite with this one-entry Unicode lexicon. An authorized native tester must record and use the matching Unicode build and lexicon hashes for the check below.
+
 ### Checks in every matrix cell
 
 Use only public, self-authored fixture input. Do not capture private keystrokes, preedit, or committed text in diagnostics.
@@ -197,7 +314,7 @@ Use only public, self-authored fixture input. Do not capture private keystrokes,
 1. Load the addon through Fcitx's native loader. Select **Bopomofo Development** in the isolated test profile. Record build identity and library versions.
 2. Type `1 8 Space`: show `八` as preedit, with a byte-correct end cursor. Type Enter: commit once and clear preedit. Repeat Enter: no second commit.
 3. Type `1 8 Space Down`: show candidates 1–9. Page Down: show candidates 10–12 with page-relative labels. Press `1`: select `豝`, without commit. Enter commits it once. Repeat with native mouse selection and native page buttons.
-4. Type `s u 3 c l 3`: show `你好`. Use Home, Right, Backspace, and Delete. Verify caret, native rendering, and the same core replay results. Use a separately approved self-authored Unicode lexicon to check non-BMP Han, emoji, and combining marks.
+4. Type `s u 3 c l 3`: show `你好`. Use Home, Right, Backspace, and Delete. Verify caret, native rendering, and the same core replay results. In the separate [Unicode staging build](#unicode-fixture-staging), type `u Space Home End Down 1 Enter Enter`. After Space, expect `𠀀é😀`; Home sets cursor 0 and End sets cursor 11 **UTF-8 bytes**. This text is 6 UTF-16 code units, not 6 Fcitx cursor units. Down shows the candidate; `1` selects it without commit. The first Enter commits the exact text once; the second produces no additional IME commit. Type `u Space Escape` to cancel without commit. Check native rendering of the non-BMP Han character, combining sequence, and emoji.
 5. Hold a key: verify repeat. Release it: no extra syllable or commit. Test Ctrl/Alt/Meta shortcuts, shifted letters and punctuation, Shift-alone, Shift plus another key, Shift plus Control transition, and Caps Lock. Check the physical US Dachen positions under a non-US host layout.
 6. Switch fields, windows, applications, and input methods during partial and complete composition. Expect cancellation with no commit and no state transfer. Repeat reset, including while one or both Shift keys remain physically held. Reopen candidates and test captured old callbacks separately from a delayed DBus `SelectCandidate(index)` from the old rendered UI. The DBus path remains an open protocol gap and blocks native acceptance.
 7. Check password, sensitive, and IME-disabled fields. Change an existing field to Sensitive-only while preedit and candidates are visible, without pressing another key. Presentation must clear immediately with no commit. Clear Sensitive and check that Enter and old candidate callbacks cannot restore the old composition. No input UI must appear in a restricted field. Do not override the host restriction.

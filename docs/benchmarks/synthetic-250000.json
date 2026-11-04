@@ -1,0 +1,175 @@
+{
+  "data_kind": "synthetic",
+  "scores": "self-authored ranking values, not observed frequency",
+  "source": {
+    "base_commit": "23d14acf2439baba1da01fc1f9f0cc6a60e0e4fb",
+    "snapshot_sha256": "a731bd22999df61da7e3a8a381d8de3d4a26c30b08a717a7f100bb72d658f60a",
+    "paths": 100,
+    "method": "sorted path + NUL + bytes + NUL; source/build/fixture/scripts inputs only"
+  },
+  "generator_sha256": "7b3445dc558131e01f262d3eb0cb10b51da976335932743c4ad9ee2c2198cb75",
+  "cli_sha256": "17980ac7fe4bdbab31cd09a5b82cf1f863a8e14512023e3404d51dae9de0c005",
+  "rustc_verbose": "rustc 1.92.0 (ded5c06cf 2025-12-08)\nbinary: rustc\ncommit-hash: ded5c06cf21d2b93bffd5d884aa6e96934ee4234\ncommit-date: 2025-12-08\nhost: aarch64-apple-darwin\nrelease: 1.92.0\nLLVM version: 21.1.3",
+  "cargo_version": "cargo 1.92.0 (344c4567c 2025-10-21)",
+  "generated": {
+    "format": "bopomofo-lexicon-v1",
+    "sha256": "fe3470b747801b75c33f93ebd31a9ba1f3d53a476869f5aac9f4f19c7d521ae0",
+    "entries": 250000,
+    "bytes": 8828716
+  },
+  "canonical": {
+    "format": "bopomofo-lexicon-v1",
+    "sha256": "b5b2abc2b898ec3334769a0afd5e3ed5d9c4362beafa2f6f46f1720f68ba27f9",
+    "entries": 250000,
+    "bytes": 8828716
+  },
+  "distribution": {
+    "readings": 992,
+    "max_candidates_per_reading": 256,
+    "max_phrase_syllables": 16,
+    "common_prefix_filler_readings": 976
+  },
+  "replay_output_sha256": "84cd14dbe4dbc0896f45ec2da35688dc427ec508a0793142a0263af3829dfff1",
+  "checks": {
+    "deterministic_generation": true,
+    "canonical_rebuild_identical": true,
+    "debug_release_replay_identical": true,
+    "repeated_replay_identical": true
+  },
+  "runs": [
+    {
+      "scope": "fixture_only",
+      "limitations": [
+        "No product performance or representative-corpus claim.",
+        "No native adapter or UI rendering is measured.",
+        "Latency includes timer and compiler-barrier overhead; memory is a process RSS sample, not peak or allocation cost."
+      ],
+      "iterations": 100,
+      "lexicon": {
+        "format": "bopomofo-lexicon-v1",
+        "sha256": "b5b2abc2b898ec3334769a0afd5e3ed5d9c4362beafa2f6f46f1720f68ba27f9",
+        "entries": 250000,
+        "bytes": 8828716
+      },
+      "corpus": {
+        "sha256": "2c28d62be85683919db9acd38d27ad2b301d9ca91065fe2f5598411129d7694d",
+        "bytes": 39749,
+        "events": 296,
+        "key_events": 296,
+        "total_events": 29600
+      },
+      "environment": {
+        "os": "macos",
+        "os_version": "26.6.2",
+        "arch": "aarch64",
+        "cpu": "Apple M4"
+      },
+      "build": {
+        "package": "ime-cli",
+        "package_version": "0.1.0",
+        "debug_assertions": false,
+        "rustc_version": null,
+        "rustc_version_status": "unavailable: compiler version was not embedded at build time"
+      },
+      "initialization": {
+        "lexicon_parse_ns": 205633834,
+        "engine_new_ns": 250,
+        "total_ns": 205634084
+      },
+      "per_key_latency": {
+        "unit": "nanoseconds",
+        "percentile_method": "nearest_rank",
+        "samples": 29600,
+        "p50": 83125,
+        "p95": 203417,
+        "p99": 220250
+      },
+      "memory": {
+        "measurement": "process_resident_set_after_benchmark",
+        "source": "macos_ps_rss_kib",
+        "resident_bytes": 105398272,
+        "status": "available"
+      },
+      "method": {
+        "timed_call": "Engine::handle including the complete returned snapshot",
+        "timed_events": "key events only; other fixture events still run",
+        "repetition_reset": "fresh Engine::new before each repetition",
+        "excluded": [
+          "file I/O and corpus parsing",
+          "per-repetition engine initialization",
+          "event cloning",
+          "expectation checks and output serialization",
+          "returned output destruction"
+        ],
+        "warmup_iterations": 0
+      }
+    },
+    {
+      "scope": "fixture_only",
+      "limitations": [
+        "No product performance or representative-corpus claim.",
+        "No native adapter or UI rendering is measured.",
+        "Latency includes timer and compiler-barrier overhead; memory is a process RSS sample, not peak or allocation cost."
+      ],
+      "iterations": 100,
+      "lexicon": {
+        "format": "bopomofo-lexicon-v1",
+        "sha256": "b5b2abc2b898ec3334769a0afd5e3ed5d9c4362beafa2f6f46f1720f68ba27f9",
+        "entries": 250000,
+        "bytes": 8828716
+      },
+      "corpus": {
+        "sha256": "2c28d62be85683919db9acd38d27ad2b301d9ca91065fe2f5598411129d7694d",
+        "bytes": 39749,
+        "events": 296,
+        "key_events": 296,
+        "total_events": 29600
+      },
+      "environment": {
+        "os": "macos",
+        "os_version": "26.6.2",
+        "arch": "aarch64",
+        "cpu": "Apple M4"
+      },
+      "build": {
+        "package": "ime-cli",
+        "package_version": "0.1.0",
+        "debug_assertions": false,
+        "rustc_version": null,
+        "rustc_version_status": "unavailable: compiler version was not embedded at build time"
+      },
+      "initialization": {
+        "lexicon_parse_ns": 206932916,
+        "engine_new_ns": 250,
+        "total_ns": 206933166
+      },
+      "per_key_latency": {
+        "unit": "nanoseconds",
+        "percentile_method": "nearest_rank",
+        "samples": 29600,
+        "p50": 77542,
+        "p95": 189125,
+        "p99": 203500
+      },
+      "memory": {
+        "measurement": "process_resident_set_after_benchmark",
+        "source": "macos_ps_rss_kib",
+        "resident_bytes": 105168896,
+        "status": "available"
+      },
+      "method": {
+        "timed_call": "Engine::handle including the complete returned snapshot",
+        "timed_events": "key events only; other fixture events still run",
+        "repetition_reset": "fresh Engine::new before each repetition",
+        "excluded": [
+          "file I/O and corpus parsing",
+          "per-repetition engine initialization",
+          "event cloning",
+          "expectation checks and output serialization",
+          "returned output destruction"
+        ],
+        "warmup_iterations": 0
+      }
+    }
+  ]
+}

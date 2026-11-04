@@ -172,9 +172,19 @@ All rows are currently **unverified**. Record OS build, SDK/MSVC/Rust versions, 
 | Two document contexts, focus loss, app switch, context pop | Composition is context-local; old preedit and UI cancel; no delayed commit in the next context. |
 | Deactivate during queued edit; external composition termination | Pending callbacks cannot revive text or UI; cancellation is safe and does not retry a commit. |
 | Read-only, disabled, empty, and password/sensitive fields | TSF restrictions are respected; no alternate input path is used. |
-| Non-BMP/combining fixture selected text and cursor | Host uses valid UTF-16 positions; no split surrogate, invalid range, or duplicate commit. Use separately approved test data. |
+| Non-BMP/combining fixture selected text and cursor | Use `fixtures/unicode/lexicon.tsv` and `cases.jsonl` in a separately staged test package. `u Space Home End Down 1 Enter Enter` produces `𠀀é😀`: UTF-16 cursor 0 then 6, one commit, then no repeated commit. Core cursor 11 is a UTF-8 byte offset, not the TSF position. |
 | 100/150/200% DPI, two monitors, screen edges, delayed layout | Native UI stays usable and on screen; no focus transfer or stale popup. |
 | Missing/changed lexicon or digest before activation | Activation fails safely; another IME remains usable; no invalid data is used. |
 | Close host apps, authorized removal, restore previous version | Exact service keys are removed; other IMEs and retained files are unchanged. |
+
+### Reproducible live-session cases
+
+Use [`basic.jsonl`](../fixtures/basic.jsonl) for the default lexicon. For Unicode, use the self-authored [`Unicode lexicon`](../fixtures/unicode/lexicon.tsv) and [replay](../fixtures/unicode/cases.jsonl). Prepare a separate DLL/data directory, validate/build that lexicon with `ime-cli`, and place its lowercase SHA-256 plus LF in `lexicon.sha256`. Do not replace a loaded DLL or an installed data file. Record the staged DLL and lexicon hashes. Installation and switching the registered path still require scoped authorization.
+
+1. In an authorized UI-less host, type `1 8 Space Down Page Down`. Inspect the host's TSF UI-element presentation. Expected: the service popup is hidden, the selected absolute index is 9, and the page starts are 0 and 9. Finalize `豝`; expected: marked `豝`, then Enter commits it once. A second Enter must not repeat the text. If no UI-less host is available, record `blocked`, not a fallback-UI pass.
+2. In a host that requests service-owned UI, repeat the same sequence. Expected: the native listbox is at the caret and does not take focus. Click `豝` on page two; it stays marked until Enter. Record this separately from the UI-less case.
+3. Use a live text store that can refuse the synchronous edit lock and later grant an asynchronous lock. Type and commit the fixture. Expected: queued edits stay ordered and the commit occurs once. Before granting another queued edit, make the context read-only, pop it, or deactivate the service. Expected: no text insertion or revived UI. Repeat each transition separately. If the host cannot control lock timing, record the delayed case as `blocked`; COM mocks do not validate it.
+4. With the Unicode test package, follow its replay. Expected: Home at UTF-16 offset 0, End at 6, and one selected/committed `𠀀é😀`. Repeat `u Space Escape` for cancellation. Change fields and return: no old mark, popup, or delayed commit may remain.
+5. Keep a system IME available. Follow the scoped recovery steps above after a failed check. Preserve only fixture identifiers, non-sensitive states, and error categories; do not log normal input.
 
 Run the applicable rows separately for x64, x86, and ARM64 processes in native text controls, a browser, and an Electron application. Record each app/version/architecture result separately. No result from a single application establishes support for the other combinations.

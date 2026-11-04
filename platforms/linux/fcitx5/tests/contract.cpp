@@ -356,33 +356,67 @@ void nativeApi(const std::string &lexiconPath, const std::string &checksumPath) 
     fcitx::CapabilityChangedEvent disabled(&first, fcitx::CapabilityFlag::Disable, fcitx::CapabilityFlag::NoFlag);
     addon.capabilityChanged(disabled);
     require(first.inputPanel().empty() && !key(first, FcitxKey_1), "Capability change reactivated a disabled context");
+}
+void knownRenderedIndexGap(const std::string &lexiconPath, const std::string &checksumPath) {
+    fcitx::InputContextManager manager;
+    bopomofo::Addon addon(manager, lexiconPath, checksumPath);
+    const fcitx::InputMethodEntry entry("bopomofo-dev", "Bopomofo Development", "zh_TW", "bopomofo-dev");
+    InputContext context(manager);
+    context.setCapabilityFlags(fcitx::CapabilityFlag::NoFlag);
+    fcitx::FocusInEvent activation(&context); addon.activate(entry, activation);
+    auto key = [&](fcitx::KeySym sym) {
+        for (bool release : {false, true}) {
+            fcitx::KeyEvent event(&context, fcitx::Key(sym), release);
+            addon.keyEvent(entry, event);
+            require(event.accepted() == event.filtered(), "Gap model consumed event not filtered");
+        }
+    };
+    auto ba = [&] { key(FcitxKey_1); key(FcitxKey_8); key(FcitxKey_space); };
+    auto reset = [&] { fcitx::ResetEvent event(&context); addon.reset(entry, event); };
 
     // Controlled model of Fcitx5 5.1.7 DBus SelectCandidate(int): it resolves
     // the CURRENT list, without the generation of the previously rendered UI.
     // Reproducing this gap is not a native stale-UI safety acceptance test.
-    activate(first); ba(first); key(first, FcitxKey_Down);
-    auto rendered = first.inputPanel().candidateList(); rendered->toPageable()->next();
-    rendered = first.inputPanel().candidateList();
+    ba(); key(FcitxKey_Down);
+    auto rendered = context.inputPanel().candidateList();
+    require(rendered && rendered->toPageable(), "Missing candidate list for gap model");
+    rendered->toPageable()->next();
+    rendered = context.inputPanel().candidateList();
     const int delayedRenderedIndex = 0;
-    require(rendered->candidate(delayedRenderedIndex).text().toString() == "豝", "Missing old rendered page for gap model");
-    reset(first); ba(first); key(first, FcitxKey_Down);
-    auto resolvedNow = first.inputPanel().candidateList();
-    require(resolvedNow->candidate(delayedRenderedIndex).text().toString() == "八", "Missing replacement page for gap model");
-    rendered->candidate(delayedRenderedIndex).select(&first);
-    require(static_cast<bool>(first.inputPanel().candidateList()), "Captured stale Word was not rejected");
+    require(rendered && rendered->candidate(delayedRenderedIndex).text().toString() == "豝",
+            "Missing old rendered page for gap model");
+    reset(); ba(); key(FcitxKey_Down);
+    const auto resolvedNow = context.inputPanel().candidateList();
+    require(resolvedNow && resolvedNow->candidate(delayedRenderedIndex).text().toString() == "八",
+            "Missing replacement page for gap model");
+    rendered->candidate(delayedRenderedIndex).select(&context);
+    const auto afterStale = context.inputPanel().candidateList();
+    require(afterStale && afterStale->size() == resolvedNow->size() &&
+            afterStale->cursorIndex() == resolvedNow->cursorIndex() &&
+            afterStale->toPageable()->currentPage() == resolvedNow->toPageable()->currentPage() &&
+            afterStale->candidate(delayedRenderedIndex).text().toString() == "八" &&
+            context.inputPanel().preedit().toString() == "八" && context.commits.empty(),
+            "Captured stale CandidateWord changed current composition or list");
+    std::cout << "Captured old CandidateWord: rejected; current composition/list unchanged; no commit\n";
+
     // This is the index-only DBus resolution step, NOT the old Word callback.
-    first.inputPanel().candidateList()->candidate(delayedRenderedIndex).select(&first);
-    require(!first.inputPanel().candidateList() && first.inputPanel().preedit().toString() == "八" && first.commits.size() == 1,
+    context.inputPanel().candidateList()->candidate(delayedRenderedIndex).select(&context);
+    require(!context.inputPanel().candidateList() && context.inputPanel().preedit().toString() == "八" && context.commits.empty(),
             "Known index-only current-list gap did not reproduce");
-    reset(first);
-    std::cout << "Known DBus index-only stale-UI gap reproduced; native safety remains blocked\n";
+    reset();
+    std::cout << "known gap reproduced: old rendered index selects CURRENT list; native safety remains blocked\n";
 }
 } // namespace
 
 int main(int argc, char **argv) {
     try {
-        require(argc >= 4, "Pass lexicon, checksum, and replay paths");
+        require(argc >= 4, "Pass lexicon, checksum, and replay paths, or --known-gap-reproduced lexicon checksum");
         require(bpm_abi_version() == BPM_ABI_VERSION, "C ABI version mismatch");
+        if (std::string(argv[1]) == "--known-gap-reproduced") {
+            require(argc == 4, "Pass --known-gap-reproduced, lexicon, and checksum only");
+            knownRenderedIndexGap(argv[2], argv[3]);
+            return 0;
+        }
         const auto lexicon = bopomofo::loadVerifiedLexicon(argv[1], argv[2]);
         mapping(); checksum(lexicon, argv[2]); abi(lexicon); unicode();
         for (int i = 3; i < argc; ++i) { replay(lexicon, argv[i]); }

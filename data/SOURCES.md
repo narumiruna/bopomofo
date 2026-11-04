@@ -4,7 +4,9 @@
 
 正式 Traditional Chinese Zhuyin lexicon 與 phrase frequency data **尚未選定或核准匯入**。目前只允許使用本專案自製的最小 fixtures。外部來源的調查結果不等於 import 或 release approval。
 
-本次於 **2026-10-28 UTC** 以 `curl` 查閱來源、license 與資料格式。供檢查的下載檔只放在 repository 外的 temporary directory；未將外部 lexicon、corpus、importer 或輸入引擎程式碼加入 repository。
+初次調查於 **2026-10-28 UTC** 以 `curl` 查閱來源、license 與資料格式。供檢查的下載檔只放在 repository 外的 temporary directory；未將外部 lexicon、corpus、importer 或輸入引擎程式碼加入 repository。
+
+**2026-11-05（UTC+08:00）** 的補查只處理 Unihan、CC-CEDICT 與 McBopomofo 的未解項。只下載相關文件、notices 與 pinned repository file list，仍放在 repository 外。沒有重新下載外部詞庫、匯入 entries、建立專用 importer 或執行外部 engine。補查結果及負責角色見 [Source decision and handoff](#source-decision-and-handoff)。
 
 - 保留根目錄 `LICENSE` 的 GNU AGPL v3 policy，不更換專案授權。
   - 自製 fixtures 依 repository 的 AGPL policy 管理，不另加新的 license。
@@ -20,7 +22,7 @@
 | `fixture-local` | 自製字、詞、讀音及人工設定的 ranking scores | 不取自外部 dictionary 或 corpus；依現有 AGPL policy 管理 | 允許用於開發；不是產品詞庫或真實詞頻證據。 |
 | `unicode-unihan-17` | Character readings；少量 character/pronunciation frequencies | Unicode License V3 明確允許修改與散布，須保留 notice | **Candidate，未核准匯入**；可供 character fallback 評估，不足以取代 phrase lexicon。 |
 | `cc-cedict-snapshot` | Traditional/Simplified forms、phrase Pinyin、English definitions | 資料 header 與 publisher 均指定 CC BY-SA 4.0 | **Candidate，未選用**；需處理 ShareAlike、讀音品質與 snapshot 保存，沒有 phrase frequency。 |
-| `mcbopomofo-data` | 直接的 Zhuyin 字詞 mapping 與 phrase occurrence counts | Root MIT 與 data 的上游 provenance 必須分開查核 | **Blocked approval**；libtabe notices 與 frequency provenance 尚未確認完整。 |
+| `mcbopomofo-data` | 直接的 Zhuyin 字詞 mapping 與 phrase occurrence counts | Root MIT 與 data 的上游 provenance 必須分開查核；已取得 libtabe notices | **Blocked approval**；Tsai／IOME／Xcin 的完整 grants、後續 contributions 與 frequency rights 尚未確認。 |
 | `moe-revised` | Traditional Chinese 字詞、Zhuyin、definitions | 官方指定 CC BY-ND 3.0 Taiwan；未取得本專案轉換所需的另行許可 | **Blocked for transformed lexicon**；不匯入、不假設 ND 允許 extraction。 |
 | `naer-coct` | 官方提供通用詞頻表下載連結 | 已查閱頁面未提供適用於該檔的轉換／散布授權證據 | **Rights unverified**；未下載、匯入或散布詞頻表。 |
 | `tatoeba-cmn` | Mandarin sentences 與 translation-base metadata | 官方區分 CC BY 2.0 FR 一般 corpus 與 CC0 subset | **Candidate only**；CC0 僅一筆，未提供 Taiwan 詞頻或 gold Zhuyin replay 證據。 |
@@ -35,11 +37,15 @@
   - 原始檔 SHA-256：`c54ced5e1e44472337f9bb5c5b8fe41e7a692a33dbfa8d360991704888f11dcd`。
   - `ime-cli build-lexicon` 正規化產物 SHA-256：`7f57031c86bb4c3d909b4e24a08e54d771bba4cc7d06a7c164e121fb62be37d6`。
   - 兩次匯出結果以 `cmp` 驗證完全相同；版本由包含本檔與 fixture 的 repository revision 固定。
+- 獨立品質版本為 `fixture-local-quality-v1`，位於 [`fixtures/lexicon-quality/`](../fixtures/lexicon-quality/README.md)，不改動上述 baseline。
+  - `lexicon.tsv`：6 筆，150 bytes；原始 SHA-256 `dfd2c67509dd409b24a91cc6d7c278e945b820c86ab685ae2d32f668125dd1e7`。
+  - `cases.jsonl`：17 筆人工 expectations，2925 bytes；SHA-256 `ef4d3e07f9e6d5dcd4784b213d808b1bfb46bf0b767a9fbdfba45bb564dc01a5`。
+  - 只補 phrase heteronym 與 replay tie ordering。既有 homophones、length competition 與 unknown fallback 沿用原 tests。人工推導及 debug／release replay equality 證據保存在該目錄 README。
 - 極小 fixture 的測試不能證明正式詞庫的 coverage、候選品質或代表性效能。
 
 ## Unicode Unihan 17.0.0
 
-這是本次找到的**明確允許資料修改與散布**的來源，但仍是未選用的 candidate。
+這是已確認**明確允許資料修改與散布**的來源，但仍是未選用的 candidate。
 
 | 欄位 | 查核紀錄 |
 | --- | --- |
@@ -53,7 +59,7 @@
 | 授權適用範圍 | [Unicode Terms of Use](https://www.unicode.org/terms_of_use.html) 將 `/Public/` 下的 computer data files 納入 Unicode Data Files，並指定 License V3，除非另有註明。這不代表可用相同條款散布整份 Unicode specification。 |
 | Attribution | 保留 archive 內 `© 2025 Unicode®, Inc.` notice，並在 data 或 associated documentation 包含完整 copyright and permission notice。遵守不得以權利人名稱宣傳背書的限制。 |
 | Conversion rights | License 明列 use、copy、modify、merge、publish、distribute、sell。可據此評估 Pinyin-to-Zhuyin conversion、欄位選取與 index 建置；須保留 notices，且仍需本專案核准與品質驗證。 |
-| Checksum availability | 已實際下載並計算下列 SHA-256。檢查過的 release directory 未列出對應 publisher checksum 或 signature；這是本地取得內容的識別值，不是 publisher signature。 |
+| Checksum availability | 2026-10-28 已實際下載並計算下列 SHA-256。當時檢查的 release directory 未列出對應 publisher checksum 或 signature；這是本地取得內容的識別值，不是 publisher signature。 |
 
 ```text
 Unihan.zip (8,518,517 bytes)
@@ -85,7 +91,7 @@ SHA-256 e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96
 | 已檢查的 snapshot | Header：`version=1`、`subversion=0`、`format=ts`、`charset=UTF-8`、`entries=125326`、`date=2026-10-27T01:55:52Z`、`time=1793066152`。 |
 | License | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/legalcode.en)；資料 header 明列此 license 的 URL。 |
 | Attribution / conversion | 條款允許 share/adapt，包括商業使用；須保留所提供的 attribution、license link 與適用 notices，標示修改，並遵守 adaptation 的 ShareAlike 條件。不能直接宣稱轉換後資料只需 AGPL notice。 |
-| 可評估的轉換 | 選取 Traditional forms、轉換 Pinyin、去除 definitions、重新排序；若產物構成 adaptation，須依 ShareAlike 條件散布。實際產物及與 AGPL code 的分離方式尚未審定。 |
+| 可評估的轉換 | §2(a)(1) 允許製作與散布 adaptation；適用 database rights 時，§4(a) 另明列 extraction／reuse。可評估選取 Traditional forms、轉換 Pinyin、去除 definitions、重新排序。保守 handoff 是將轉換資料以獨立 CC BY-SA 4.0 artifact 散布並保留 notices；實際產物邊界與 package notice layout 仍須審定，不推論 AGPL-only 足夠。 |
 | Checksum / pin 限制 | 已取得下列 snapshot checksum；官方下載 URL 會更新，不能只靠 URL 重建這一版。正式選用前須安排有權保存及再散布的固定 snapshot。未發現此下載頁提供 publisher checksum。 |
 
 ```text
@@ -110,7 +116,7 @@ SHA-256 bbc4b27f26bee1a262f4d7939667a040c7857c7fc0200a2fa7a86d3352a09eae
 - [Pinned root LICENSE.txt](https://github.com/openvanilla/McBopomofo/blob/18e2060dd5d0b511753ad79a8fe0d112e944f1af/LICENSE.txt) 是 MIT，copyright `2011-2026 Mengjuei Hsieh et al.`。此 notice 應保留，但不能用它省略 libtabe 或其他資料來源的 notices。
 - [Pinned textpool.rc](https://github.com/openvanilla/McBopomofo/blob/18e2060dd5d0b511753ad79a8fe0d112e944f1af/Source/Data/textpool.rc) 指向 `~/textpool.11262021`。它沒有提供可重建的公開 corpus archive、corpus license 或其 checksum。
 
-下列 SHA-256 是本次對 pinned raw files 實際計算的結果，不是上游提供的簽章：
+下列 SHA-256 是 2026-10-28 對 pinned raw files 實際計算的結果，不是上游提供的簽章：
 
 | Pinned file URL | SHA-256 |
 | --- | --- |
@@ -121,7 +127,7 @@ SHA-256 bbc4b27f26bee1a262f4d7939667a040c7857c7fc0200a2fa7a86d3352a09eae
 
 尚缺的證據：
 
-- 確認選用 entries 的完整 data license chain，取得 libtabe 原始 copyright/permission notices 與後續新增來源的 notices。
+- 已取得下節 libtabe `tsi-src/COPYING` 的原始 notices，但仍須確認選用 entries 的完整 data license chain。需要 Tsai／IOME／Xcin 的適用 grant，以及 McBopomofo 後續新增來源的 provenance／notices。
 - 確認 `BPMFBase.txt` 與 `phrase.occ` 的權利範圍，不從 root MIT 或 counts 的格式推論全部上游授權已解決。
 - 確認 occurrence data 的產生方式、可再散布的授權證據與是否能重建。未公開 corpus 不必然表示 counts 禁止散布，但目前也不足以證明本專案有權使用及散布。
 - 在上述證據完整前，**不核准 extraction、normalization、合併、生成 artifact 或散布**。Checksum 已固定不會解除此限制。
@@ -147,7 +153,7 @@ SHA-256 bbc4b27f26bee1a262f4d7939667a040c7857c7fc0200a2fa7a86d3352a09eae
 
 固定來源為 [libtabe 0.2.6-1.2 data directory](https://sources.debian.org/src/libtabe/0.2.6-1.2/tsi-src/)，另與 [kcwu/libtabe revision ea382a829c916f2cceda2022afdf8e8471e6e7b5](https://github.com/kcwu/libtabe/tree/ea382a829c916f2cceda2022afdf8e8471e6e7b5/tsi-src) 核對。
 
-本次於 repository 外檢查資料，未建立可散布的詞庫產物，也未匯入 engine code。
+2026-10-28 於 repository 外檢查資料，未建立可散布的詞庫產物，也未匯入 engine code。
 
 | File | 本地計算的 SHA-256 |
 | --- | --- |
@@ -162,6 +168,7 @@ Data-directory README 明確指定該目錄適用 COPYING。此版本包含 TaBE
 - README 指出超過 95% vocabulary 來自 Chih-Hao Tsai，另有未能找到原始 reference 的 IOME／Xcin contributions。
 - [Tsai publisher archive](https://technology.chtsai.org/wordlist/tsaiword.zip) 的 README.TXT，日期為 1996-04-13，寫明「Feel free to use this list for any non-commercial purposes.」
   - README.TXT SHA-256：`6ea926da1b9ed71d71392fd7c84d43ee37f0956f81f59d7a8a4d66493ae8af14`。
+- `tsi-src/COPYING` 末段只有 Chih-Hao Tsai 的 copyright／聯絡資訊，沒有另外列出其 permission grant。前述 TaBE 與 Academia Sinica grants 不能單獨補足這個未解項。
 - 尚未取得後續 BSD relicensing 或適用於本專案的完整授權證據。
 - 舊條款不證明後來的 BSD 發布一定無效，但不足以宣稱整條權利鏈已確認。
 - 所需外部證據是 archived grant 或 rights-holder confirmation，不是一般的使用者批准。
@@ -215,6 +222,49 @@ README 記載 counts 由 1998 年收集的 Taiwan web pages 抽樣 1,200,000 頁
 - 一般 corpus 可評估為 prototype occurrence estimates，但須處理 attribution、source notices、translation provenance、script review、讀音驗證與 train/benchmark partition。不能把此評估當成 import approval。
 - 已查閱證據未建立 Taiwan usage representativeness，不用它替代目前的正式詞頻／代表性效能 gate，也不把 occurrence estimates 稱為已證明的產品詞頻。
 - 下載頁 HTML SHA-256：`91f1467b65cb57d3a82c956932077c72c43c98fa8e47eca3233166c51ab7c5ff`；English terms：`f3e46eaac2d25bfacaab4e3cb834bd5252bb3df6367dd9da932bf46ec5ca2c22`。保留 AGPL code、CC BY-SA 4.0 dictionary data 與 CC BY 2.0 FR corpus 的個別義務，不能將它們混稱為 AGPL-only。
+
+## Source decision and handoff
+
+2026-11-05 補查沒有選定正式來源，也沒有解除 import／release gate。可採用範圍與未解項如下；其他來源維持原紀錄，不在本次重查。
+
+| 來源／逐檔範圍 | 權利判定與可評估用途 | 仍不能提供的內容 |
+| --- | --- | --- |
+| Unihan 17.0.0 `Unihan_Readings.txt` 的 `kMandarin` | Unicode License V3 允許選取、reading conversion、合併及 redistribution，前提是保留完整 notice。可評估 character fallback；不需要另以一般使用者批准補授權。 | 沒有 phrase mapping 或完整 heteronyms。UAX #38 指定兩值取 TW 偏好的第二值、單值適用兩者，但這不是 Taiwan dictionary 品質驗收。`kHanyuPinlu` 不作 Taiwan phrase score。 |
+| CC-CEDICT 已記錄 snapshot 的 dictionary file | CC BY-SA 4.0 允許 extraction／adaptation 與 commercial redistribution。可評估獨立、保留 ShareAlike 的 Traditional phrase-reading artifact；不能直接標成 AGPL-only。 | 沒有 phrase frequency。數字聲調 Pinyin 必須另做 canonical Zhuyin conversion 與 Taiwan phrase reading 審查。原 snapshot bytes 尚無已交接的固定保存位置。 |
+| McBopomofo `BPMFBase.txt` | 已固定 revision／checksum；root MIT notice 需保留。沒有足夠逐檔 upstream provenance，尚不能核准 extraction／conversion／redistribution。 | 不能只因檔案提供 Zhuyin 或 root MIT 就核准全部 character mappings。 |
+| McBopomofo `BPMFMappings.txt` | README 明列源自 libtabe `tsi.src`。已取得 TaBE／Academia Sinica grants 與 Tsai copyright，但 Tsai／IOME／Xcin 權利鏈及後續新增資料尚未完整。 | 未取得適用 grant 前，不核准轉換、合併或散布；也不把 libtabe 的 BSD 描述當成全部來源證據。 |
+| McBopomofo `phrase.occ` | 已固定 count file，但 `textpool.rc` 只識別本機 corpus 路徑。未取得 covered counts 的產生與 redistribution 權利證據。 | 不把數值格式當授權，不把 occurrence counts 當成現代 Taiwan 使用分布。固定 count file 可支持確定性轉換，不等於 raw corpus 可重建或可散布。 |
+
+### Targeted evidence
+
+本次補查日期為 2026-11-05 UTC+08:00（2026-11-04 UTC）。下列 SHA-256 均為本地計算，不是 publisher signatures。資料 archive／mapping 的既有 checksum 仍引用前次查核，沒有假稱本次重新下載。
+
+| 文件 | SHA-256／補查結果 |
+| --- | --- |
+| [Unicode Terms of Use](https://www.unicode.org/terms_of_use.html) | `9f83fb0a046180c87d22c2678e79300475125611ac8dfc2da303db6c6b347251`；Data Files 明列 `/Public/`，適用 V3，Technical Reports 則另有條款。V3 本次 bytes 與前次記錄相同。 |
+| [UAX #38 revision 39](https://www.unicode.org/reports/tr38/tr38-39.html) | `c860013dbd725652888296afe688ac5db9352d234e0741ad44e6cba6ab56852e`；核對 `kMandarin` TW 值的次序與 collation 限制，以及 `kHanyuPinlu` 的 Beijing character corpus provenance。沒有將整份 specification 納入可散布 data scope。 |
+| [MDBG CC-CEDICT page](https://www.mdbg.net/chinese/dictionary?page=cc-cedict) | `3d22b5ef31f295f721b81aa716e656de96f96df5aad6c88865c3956407112604`；頁面此時列出 `2026-11-04 07:19:40 GMT`／125365 entries，不同於上節已記錄的 2026-10-27 snapshot。只核對頁面，未下載新版 archive，不用新版資訊覆蓋舊 checksum。 |
+| [CC BY-SA 4.0 legal code](https://creativecommons.org/licenses/by-sa/4.0/legalcode.en) | `47c0a954c88d793bdefe92fb007ae3c038fb3807f1a27083433d01aa7542c0d8`；核對 §§2(a)(1)、3(a)、3(b)、4。義務包括 supplied attribution／copyright／license／warranty notices、來源 URI、修改標示、ShareAlike 與不得增加下游限制。 |
+| [Pinned McBopomofo data README](https://github.com/openvanilla/McBopomofo/blob/18e2060dd5d0b511753ad79a8fe0d112e944f1af/Source/Data/README.md) | `4b2eea7122a2a4d8bea7f23f611c6817d681a55d397b1ba3f8100acbfeb9f82e`；仍只將 phrase mapping 描述為 libtabe-derived，沒有補上缺少的上游 grants。 |
+| [Pinned `textpool.rc`](https://github.com/openvanilla/McBopomofo/blob/18e2060dd5d0b511753ad79a8fe0d112e944f1af/Source/Data/textpool.rc) | `c338616be8015522c44e1dd2bdb5ca108520719ee528ceff609b8af1b7648e25`；active path 仍為 `~/textpool.11262021`，沒有 corpus archive／license／checksum。 |
+| Pinned installer notices：[English](https://github.com/openvanilla/McBopomofo/blob/18e2060dd5d0b511753ad79a8fe0d112e944f1af/Source/Installer/en.lproj/License.rtf)、[Traditional Chinese](https://github.com/openvanilla/McBopomofo/blob/18e2060dd5d0b511753ad79a8fe0d112e944f1af/Source/Installer/zh-Hant.lproj/License.rtf) | 分別為 `c557295db64f895d410e1a26116b3ee842b868e541ccd345e482d4c257e89df5`、`1106fa1ef4737152b9a7c1602f644dea87786f8c13d001292bbd9e536c334deb`；只提供 MIT notice／說明，未補足 data-specific upstream grants。Root MIT、libtabe README／COPYING 的本次 bytes 亦與前次記錄相同。 |
+
+### Required evidence and owners
+
+以下項目須在對應來源匯入前完成。負責角色是 handoff owner，不表示已取得其確認或 rights-holder grant。
+
+| 未解項 | 負責角色 | 必要證據／驗收條件 |
+| --- | --- | --- |
+| Unihan 固定輸入與 notice bundle | Data owner | 保存上節 17.0.0 ZIP 的原始 bytes、既有 SHA-256、所選 `Unihan_Readings.txt` 的獨立 SHA-256、archive copyright headers 及完整 V3 notice。Manifest 明列只取 `kMandarin`；新增 property 必須另列 scope。 |
+| Unihan reading conversion／Taiwan 審查 | Linguistic／validation owner | 固定 TW 值選取、Pinyin diacritics／tone／ü 到 canonical Zhuyin 的規則；提供獨立人工核對 cases、無法轉換項目的拒絕清單與 Taiwan reading review。不得由 character readings 猜 phrase heteronyms。 |
+| CC-CEDICT snapshot 保存 | Data owner | 提供實際可取得的固定 archive／decoded bytes，對上節兩個既有 SHA-256；或另選 snapshot 並保存其 header、URL、日期與兩個新 checksum。不得只交接會更新的 URL 或 checksum 字串。 |
+| CC-CEDICT artifact／notice 邊界 | Data owner／license reviewer | 審定獨立 CC BY-SA 4.0 data artifact 與 AGPL code 的 package layout。Notice bundle 保留完整 supplied header、CC-CEDICT contributors／MDBG／Paul Andrew Denisowski attribution、license／warranty notices、來源 URI、snapshot 與轉換修改紀錄。合併其他資料前另核對各來源義務。 |
+| CC-CEDICT phrase reading conversion | Linguistic／validation owner | 固定 Traditional form 選取、數字 tones、neutral tone、ü／u:、erhua、非標準 syllables 與 proper nouns 的處理。保留每個 phrase 的完整 syllable sequence，提供獨立 Taiwan gold readings 與排除理由；不靜默猜音或逐字拼成 phrase。 |
+| McBopomofo mapping 權利鏈 | Data owner／McBopomofo maintainer；缺少 grant 時由原 rights holder 提供 | 分別列出 `BPMFBase.txt`、`BPMFMappings.txt` 對應所選 revision 的來源及後續 contributions。取得適用於 Tsai／IOME／Xcin 與其他選用來源的 archived grant 或 rights-holder confirmation，明列 covered entries／版本及 conversion、合併、commercial redistribution 範圍；保存 root MIT、libtabe 全部 notices 與新增 grants。不能只以 maintainer 推測代替來源權利。 |
+| McBopomofo counts 權利與 provenance | Data owner／corpus owner／對應 rights holder | 識別 `phrase.occ` 所涵蓋 corpus 版本、count 方法／單位、人工調整與來源，並提供可轉換、合併及散布該 count file 的 grant／notices。若要宣稱可重建 counts，另交付可用 corpus snapshot／checksum／處理版本；只授權 derived counts 不等於授權 raw corpus 散布。 |
+| McBopomofo Taiwan reading 品質 | Linguistic／validation owner | 權利完成後才審查所選 mapping 的 Taiwan phrase readings、多讀音與缺失項，提供獨立人工 cases。未核准的 heterophony lists、generated scores 或其他 engine data 不在本次可採用 scope。 |
+| 正式 score／phrase frequency | Corpus／frequency owner | 提供有權使用與散布的 Taiwan phrase counts 或明確標示的估計資料、snapshot／SHA-256／notices、選樣年代／領域、計數單位及與 reading 的對應。固定零值、缺失值、多讀音分配與 positive `u32` score 規則，另提供獨立 benchmark corpus；不得把本專案人工 scores、Unihan character frequencies 或其他 engine scores 當成真實 phrase frequency。 |
+| 來源選定與 importer 任務交接 | Project owner／data owner | 以上適用證據完整後，具名選定來源、file allowlist、snapshot／notice bundle checksums、產物 license 與轉換規則，才可提出專用 importer 任務。該任務仍須固定 importer revision、format version、排序與 output SHA-256，並驗證 byte-identical rebuild 及失敗不覆寫；本次不實作。 |
 
 ## Import and release gate
 

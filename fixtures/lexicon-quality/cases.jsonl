@@ -1,0 +1,17 @@
+{"event":{"type":"key","key":"t"},"expect":{"consumed":true,"snapshot":{"preedit":"ㄔ","cursor":3,"candidates":[],"selecting":false},"commit":null,"status":null}}
+{"event":{"type":"key","key":";"},"expect":{"consumed":true,"snapshot":{"preedit":"ㄔㄤ","cursor":6,"candidates":[]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"6"},"expect":{"consumed":true,"snapshot":{"preedit":"常","cursor":3,"candidates":[{"text":"常","start":0,"end":1},{"text":"長","start":0,"end":1}]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"2"},"expect":{"consumed":true,"snapshot":{"preedit":"常ㄉ","cursor":6,"candidates":[]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"8"},"expect":{"consumed":true,"snapshot":{"preedit":"常ㄉㄚ","cursor":9,"candidates":[]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"4"},"expect":{"consumed":true,"snapshot":{"preedit":"長大","cursor":6,"candidates":[{"text":"大","start":1,"end":2}]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"home"},"expect":{"consumed":true,"snapshot":{"preedit":"長大","cursor":0,"candidates":[{"text":"長大","start":0,"end":2},{"text":"常","start":0,"end":1},{"text":"長","start":0,"end":1}]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"enter"},"expect":{"consumed":true,"snapshot":{"preedit":"","cursor":0,"candidates":[],"selecting":false},"commit":"長大","status":null}}
+{"event":{"type":"reset"},"expect":{"consumed":true,"snapshot":{"preedit":"","cursor":0,"candidates":[],"selecting":false},"commit":null,"status":null}}
+{"event":{"type":"key","key":"5"},"expect":{"consumed":true,"snapshot":{"preedit":"ㄓ","cursor":3,"candidates":[]},"commit":null,"status":null}}
+{"event":{"type":"key","key":";"},"expect":{"consumed":true,"snapshot":{"preedit":"ㄓㄤ","cursor":6,"candidates":[]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"3"},"expect":{"consumed":true,"snapshot":{"preedit":"長","cursor":3,"candidates":[{"text":"長","start":0,"end":1}]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"2"},"expect":{"consumed":true,"snapshot":{"preedit":"長ㄉ","cursor":6,"candidates":[]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"8"},"expect":{"consumed":true,"snapshot":{"preedit":"長ㄉㄚ","cursor":9,"candidates":[]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"4"},"expect":{"consumed":true,"snapshot":{"preedit":"長大","cursor":6,"candidates":[{"text":"大","start":1,"end":2}]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"home"},"expect":{"consumed":true,"snapshot":{"preedit":"長大","cursor":0,"candidates":[{"text":"長大","start":0,"end":2},{"text":"長","start":0,"end":1}]},"commit":null,"status":null}}
+{"event":{"type":"key","key":"enter"},"expect":{"consumed":true,"snapshot":{"preedit":"","cursor":0,"candidates":[],"selecting":false},"commit":"長大","status":null}}

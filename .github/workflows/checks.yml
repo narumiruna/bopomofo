@@ -28,6 +28,18 @@ jobs:
         if: runner.os == 'Windows'
         run: cargo build -p ime-windows --locked
       - run: cargo test --workspace --all-targets --locked
+      - name: Offline release workflow tests
+        if: runner.os == 'Linux'
+        run: bash .github/tests/release-workflow.sh
+      - name: Install pinned uv for generator tests
+        if: runner.os == 'Linux'
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: '0.9.26'
+          enable-cache: false
+      - name: Lightweight synthetic generator tests
+        if: runner.os == 'Linux'
+        run: uv run --offline --no-project python -m unittest discover -s scripts/tests
       - name: macOS bundle and adapter contracts
         if: runner.os == 'macOS'
         run: bash platforms/macos/scripts/test.sh

@@ -6,9 +6,95 @@
 
 Rust tests、platform build、headless contract tests 與 desktop checks 是不同證據。不得用其中一項代替另一項，也不得將未測的 OS／架構／應用程式列為支援。
 
-本輪本機驗證日期為 2026-10-28 UTC。實作起始 Git revision 為 `14f08344f510179d64060fef603610ab238bc719`，內容以下列 source snapshot 識別。已取得推送 source 與執行 native CI 的授權，但不包含 IME 安裝、註冊、啟用或 artifact 發布。Artifact hashes 識別實際建置，不是簽章信任或產品認證。
+首次本機驗證日期為 2026-10-28 UTC。其實作起始 Git revision 為 `14f08344f510179d64060fef603610ab238bc719`，內容以下列 source snapshot 識別。已取得推送 source 與執行 native CI 的授權，但不包含 IME 安裝、註冊、啟用或 artifact 發布。Artifact hashes 識別實際建置，不是簽章信任或產品認證。
 
 首次本機驗證與 CI commit `c6d2e2c` 的 source/build/fixture snapshot 包含 87 個路徑，SHA-256 為 `6de256861cf932740b1f0874e7b14133aae70737541c6823f05709f07145b2b8`。計算法為：以 `git ls-files --cached --others --exclude-standard -z` 列出 `.gitattributes`、Cargo manifests／lock、toolchain、`crates/`、`platforms/`、`fixtures/`、`.github/`，依路徑排序後，逐筆串接 `path + NUL + contents + NUL` 再取 SHA-256。
+
+## IME readiness checks — 2026-11-04 UTC
+
+本次 coding work 以 `origin/main` commit `23d14acf2439baba1da01fc1f9f0cc6a60e0e4fb` 為 base，branch 為 `narumi/feat/ime-readiness`。相較 plan 原定的 `7b20300`，base 只新增 `.gitignore` 規則。起始 working tree 只有使用者提供、尚未追蹤的本次 plan；未丟棄其他變更。下列紀錄與歷史證據分開，不沿用舊 run 作為本次 source 的驗收。
+
+### Environment and baseline
+
+| Item | 本次結果 |
+| --- | --- |
+| Host | macOS 26.6.2 (25G83)，arm64，Apple M4，16 GiB RAM。 |
+| Rust | `rustc 1.92.0 (ded5c06cf 2025-12-08)`，LLVM 21.1.3；Cargo 1.92.0 (344c4567c)。 |
+| Swift / SDK | Apple Swift 6.4 (swiftlang-6.4.0.34.1)，CLT macOS SDK 27.0。`xcodebuild -version` 因未安裝完整 Xcode 而失敗；bundle check 使用 CLT，不依賴 Xcode。 |
+| Tools | uv 0.9.26、gh 2.101.0、jq 1.7.1-apple。未保存 credentials 或使用者輸入。 |
+| Docker | OrbStack Docker client/server 29.4.0；daemon 可用，Linux arm64。既有 headless image `sha256:edc8a252f7acadb512ae73fe5fa84deacfd8055cb5bd0a5b56bb76d534356ffb` 可用；依 repository Dockerfile 重建。 |
+| Baseline format / Clippy | A2 的 `cargo fmt --all -- --check`、workspace Clippy `--locked -- -D warnings`，各 exit 0。 |
+| Baseline debug / release | A2 的 workspace `--all-targets --locked` tests，各 profile 80 passed：CLI 19、core 39、FFI 6、Windows portable 16；Windows DLL tests 在本 host 為 0，不是 TSF runtime 結果。 |
+
+本次只建立本機 build outputs、synthetic data、tests 與 source PR。不執行 IME 安裝／註冊／啟用／移除、系統設定變更、tag push、workflow dispatch、remote draft creation 或 publication。
+
+### Final source and agent checks
+
+G1 在本次最終 source 上重跑。100 個 source/build/fixture/script paths 的 snapshot SHA-256 為 `a731bd22999df61da7e3a8a381d8de3d4a26c30b08a717a7f100bb72d658f60a`；計算法與排除範圍見 [synthetic benchmark method](benchmarks/README.md#retained-reports)。所有三份 reports 均核對此 snapshot。`docs/` 文件與 reports 不參與該 hash，避免自我相依；`fixtures/` 內的 README 仍屬於 fixture inputs。
+
+| Check | Result / evidence | Scope / limit |
+| --- | --- | --- |
+| Format / Clippy | A2 原指令重跑，各 exit 0。 | Workspace、all targets、locked、warnings-as-errors。 |
+| Workspace debug / release | 各 **84 passed**：CLI 22、core 40、FFI 6、Windows portable 16；各 exit 0。 | 新增 250,000／250,001 entries 與 256／257 candidates 邊界、品質及 Unicode fixtures；runtime policy 不變。 |
+| Repository fixtures | Focused tests 各 profile **3/3**。11 corpora／386 records 的 debug/release stdout 逐檔 `cmp` 相同；含原先漏列的 `ui-abort.jsonl`。 | 9 個 baseline corpora、quality 17 records、Unicode 11 records。Expectations 由人工推導，不由 engine output 生成。 |
+| Generator / full stress | Offline unittest **9/9**；三個 profiles 均完成 validate、兩次 canonical build、debug/release/repeated replay，以及兩次 100-repetition release benchmark；exit 0。 | 固定 10,000／100,000／250,000 entries；最大 8,828,716 bytes、16-syllable phrase、256 candidates per reading。只證明 synthetic 容量與壓力行為。 |
+| macOS arm64 | `bash platforms/macos/scripts/test.sh` exit 0；bundle／Swift link、plist／ABI／lexicon digest／ad-hoc signature checks，**125** pure assertions、**96** actual C ABI assertions、**16** management dry-run cases。 | 未啟動 IMKServer session，未安裝／啟用或驗證 native callback attributes。 |
+| Windows portable | `cargo test -p ime-windows --all-targets --locked` exit 0，**16 passed**。 | 本機不是 Windows；DLL loader tests 0。不能當作 live TSF 或 candidate UI 證據。 |
+| Windows cross-check | x64／x86／ARM64 各自 `cargo check` 與 Clippy `--all-targets --locked` exit 0。 | 不 link 或執行 Windows DLL。當前 native-build CI 另列於 PR，不沿用歷史 run。 |
+| Linux arm64 clean build | Dockerfile 重建 exit 0；空目錄 Release build、build-time ABI v1、CTest **5/5**。Root replay **9 files／358 records**；source manifest 前後相同。 | Image／SDK 與本次來源範圍見 [Linux evidence](linux.md#section-e-evidence--2026-11-04-utc)。沒有 desktop／daemon／native loader。 |
+| Linux C++ ASan/UBSan | Clean Debug build，CTest **5/5**；leak detection、halt-on-error，無 sanitizer error；exit 0。 | C++ adapter/test translation units 有 instrumentation；**Rust release archive 與 system SDK 沒有 instrumentation**。 |
+| Fcitx known gap | 獨立 CTest 在兩個 profiles 各 **1/1 reproduced**，輸出明列 old Word rejected 與 old rendered index selects current list。 | 這是已知 correctness gap 的重現，**不是 safety pass**；Linux native acceptance 仍 blocked。 |
+| Offline Release | Bash syntax／stub suite **20/20**，exit 0；tag validation 與 draft script 與原 workflow Bash 相同。 | Temporary Git repo、fake token、stub cargo/gh、無 network／remote write／assets。Hosted Release 與 draft path 未執行。 |
+| Workflow lint | PyYAML **6.0.3** parsing **3/3**；actionlint **1.7.9** exit 0。下載 archive SHA-256 `855e49e823fc68c6371fd6967e359cde11912d8d44fed343283c8e6e943bd789` 已核對上游 versioned checksums。 | Optional ShellCheck／Pyflakes 未執行；local lint 不代替 hosted run。 |
+| Review | Main agent 與獨立 read-only review 均檢查 correctness、security、lifecycle、compatibility、regressions 與 scope；未發現 blocking defect。 | 新增的文件 handoff 不解除正式資料、native、Fcitx safety 或 Release gates。 |
+| Documentation / scope | 9 份 retained Markdown、38 個 local links/anchors、20 個 Bash blocks syntax checks，以及 `git diff --check` 均通過。 | 未納入 credentials、外部詞庫、binary、大型 generated data 或 logs。 |
+
+最終本機 artifacts 的 SHA-256：
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Release `ime-cli` | `17980ac7fe4bdbab31cd09a5b82cf1f863a8e14512023e3404d51dae9de0c005` |
+| macOS executable | `61cf0838d64a91a6359e8ae853a1bc8c98c447bba9bff801a34a18c4b2b532ca` |
+| Linux clean Release addon | `0482cc4636fdcbab7e8fe0a9abe356fe608dd9273f93cd2f9fafa025b2cb950c` |
+| Linux C++ ASan/UBSan addon | `6efe02fc4bf133b72d25396fb00d5d9b06111b5e8d15c847949735ab4587cad9` |
+| Linux Rust archive, both profiles | `0c7e94cf93b9674b1d3f6a6e55aa2456894d46c109d75692b47fe7e37f10c1ab` |
+| Baseline packaged lexicon, all local builds | `c54ced5e1e44472337f9bb5c5b8fe41e7a692a33dbfa8d360991704888f11dcd` |
+| Baseline manifest | `214a4ecdd73e1f785995dacaaad733b7796cd765819a159bb0524c0482e59f84` |
+| Separate Unicode fixture lexicon | `fb064cc2a15d749eca43085379c8bdc7eb0de6e99481e1377fd0d7e47056b7c4` |
+
+Linux addon 內含 build-local prefix，因此重新選取 temporary build path 可改變 binary hash；不宣稱 byte-reproducible native build。最終 Linux log SHA-256 為 `b3cac7b27695e70e5a657149298ac9e1e49a34eeb2efa8c425f5e63cb7e3b7c1`。Raw logs、CTest XML 與 manifests 留在 ignored `target/ime-readiness-evidence/`；binary 與大型資料不納入 Git。
+
+### Synthetic measurements
+
+[方法與完整兩次 reports](benchmarks/README.md) 保留 generated/canonical lexicon、corpus、replay-output hashes、source/build IDs、實際 compiler、OS／CPU 與分布。Host 為上述 Apple M4／macOS arm64；shared development host 未固定 CPU affinity／frequency，且同時執行其他 checks。以下每格依 run 1／run 2 列出：
+
+| Entries | Initialization ns | p50 ns | p95 ns | p99 ns | Process RSS sample bytes |
+| --- | --- | --- | --- | --- | --- |
+| 10,000 | 6,653,500 / 11,808,292 | 81,750 / 92,916 | 215,958 / 318,459 | 334,750 / 527,958 | 7,372,800 / 7,634,944 |
+| 100,000 | 80,407,500 / 74,814,916 | 82,542 / 87,458 | 201,833 / 221,250 | 231,833 / 350,292 | 45,613,056 / 45,596,672 |
+| 250,000 | 205,634,084 / 206,933,166 | 83,125 / 77,542 | 203,417 / 189,125 | 220,250 / 203,500 | 105,398,272 / 105,168,896 |
+
+每 run 各 100 repetitions，總 events 分別為 29,500／29,500／29,600，均低於 1,000,000。RSS 是 process sample，**不是 peak memory**。所有 reports 均保留 `fixture_only`，不將這些數字當成代表性 Taiwan corpus 的 p95 < 5 ms 證據。
+
+**失敗／受阻／未執行：** 本次必要 agent gates 無失敗或受阻。`xcodebuild` 的環境探測失敗已在上表說明，不是 CLT build gate。正式來源專用 importer／artifact／真實 phrase frequency、代表性 corpus gate 與 Fcitx safety fix 受外部前置條件阻擋，未實作。Installed native matrix、首次 hosted Release、remote draft inspection、signing／notarization／publication 均未執行。責任與所需證據保留於下方 External handoff、`data/SOURCES.md`、`docs/linux.md` 與 `docs/releases.md`。
+
+本次 coding plan `docs/plans/2026-11-05_ime-readiness-plan.md` 的 A–G 與 Completion Checklist 完成後已移除。其未解外部條件保留在上述 retained documents；這不代表 root `PLAN.md`、產品驗收或 release readiness 已完成。
+
+### Native result record
+
+沿用下方既有 Native matrix，不建立另一份支援矩陣。所有 installed rows 仍為 **unverified**；實際操作是 `not-run`，等待 External handoff 的環境與 scoped authorization。Tester 每次執行須填下列欄位：
+
+| Field | 必填內容 |
+| --- | --- |
+| Tester / scope | 負責角色、UTC 日期、授權範圍及所測 matrix row。不保存 tokens。 |
+| Environment | OS/build、CPU、app/version/process architecture、toolkit/version。Linux 另列 X11/Wayland、compositor、frontend route 與 module。 |
+| Identity | Source commit／snapshot、build ID、實際 executable/DLL/addon SHA-256、lexicon SHA-256。Unicode package 另列其獨立 hashes。 |
+| Case | 平台指南步驟、fixture 路徑／hash、固定事件、expected result。不得使用私人文字。 |
+| Observation | Actual result、非敏感錯誤類型、是否單次 commit，以及相關 callback／range／focus 狀態。不記錄日常輸入。 |
+| Result | `passed`、`failed`、`blocked` 或 `not-run`。未取得對應結果的 matrix row 保持 `unverified`；build/headless 結果不可填為 native passed。 |
+| Blocker / recovery | 未執行或失敗的原因、負責角色、所需證據與 release restriction；授權測試後的 scoped recovery 結果。 |
+
+先由 macOS tester 驗證 native text app，再擴到 browser／Electron／display cases。Windows 三個 process architectures 與 Linux 各 frontend 分開執行。共用 [`Unicode fixture`](../fixtures/unicode/cases.jsonl) 的 core cursor 是 11 UTF-8 bytes；macOS／Windows 預期為 6 UTF-16 code units。平台步驟見 [macOS](macos.md#authorized-native-smoke-test)、[Windows](windows.md#native-smoke-matrix) 與 [Linux](linux.md#native-validation-handoff)。
 
 ## Reproducible checks
 
@@ -222,7 +308,7 @@ sequenceDiagram
 | Linux x86_64 | X11 / Wayland 各組合 | Headless build、desktop 與 app 各自驗證；不沿用 arm64 結果。 |
 | All | Delayed native callback / selection | Reset、換 context／candidate list 後不可提交或修改新 composition；Fcitx index-only gap 保持 open。 |
 
-每筆結果須包含 OS／app／toolkit version、CPU architecture、source/build ID、artifact／lexicon SHA-256、固定 fixture、預期、實際結果與 passed／failed／unverified。只使用自製測試文字，不收集使用者日常輸入。
+每筆結果須包含 OS／app／toolkit version、CPU architecture、source/build ID、artifact／lexicon SHA-256、固定 fixture、預期、實際結果與 passed／failed／blocked／not-run。尚無 native 結果的 row 保持 unverified。只使用自製測試文字，不收集使用者日常輸入。
 
 ## External handoff and release restrictions
 
@@ -231,7 +317,10 @@ sequenceDiagram
 | Windows tester / CI owner | 三架構 build／load／非註冊 tests 已通過；提供已授權的 installed TSF／app 環境。 | Registration、activation、實際 document edit session、candidate rendering 與各架構 desktop matrix 仍未驗證。 |
 | macOS tester | 授權使用 scoped 管理腳本安裝／啟用 bundle，依 macOS guide 操作與保存結果。 | 所有 installed native app／display checks 未驗證。 |
 | Linux tester / framework owner | 提供 X11／Wayland session，驗證各 frontend，並解決或證明 candidate request 的 generation／ordering 契約。 | Desktop matrix 與 stale rendered-click 正確性未通過。 |
-| Data / release owner | 提供權利完整、可轉換與散布的 phrase／frequency data、notices 與代表性 corpus。 | 正式詞庫、代表性效能及資料散布 gate 未通過；詳見 `data/SOURCES.md`。 |
-| Release owner | 在各 gate 通過後另行授權 signing／notarization／發布。 | 本輪不發布，也不提供產品支援聲明。 |
+| Data owner / rights holder | 依 `data/SOURCES.md` 提供逐檔 license chain、固定 snapshots、conversion／redistribution grants、notices 與來源選定。一般批准不能補足 rights-holder grant。 | 正式 importer、phrase lexicon、真實 phrase frequency 與資料散布保持 blocked。 |
+| Corpus / validation owner | 提供有權使用、符合 Taiwan 選樣標準的 corpus、人工核對的 reading／replay，以及獨立 benchmark partition。 | Synthetic reports 不解除正式資料與代表性 corpus 的 p95 < 5 ms gate。 |
+| Fcitx framework / client owner | 依 `docs/linux.md` 的最小報告提供可驗證的 generation／render acknowledgement／ordering 契約或修正；替代設計須 project owner 另行核准。 | Stale rendered-click safety 是已知 correctness gap；headless reproducer 通過不解除 Linux acceptance gate。 |
+| Release owner | 依 `docs/releases.md` 取得指定 commit／version／tag、runner 使用與 remote writes 的 scoped authorization，再保存 hosted run／jobs／source-only draft／notes 證據。 | 首次 hosted Release 與 draft inspection 保持 unverified。本輪不 dispatch、推 tag 或建立 release。 |
+| Release owner | 在適用 gates 通過後另行授權 native binary distribution、signing／notarization 及 publication。 | 不發布，也不提供產品支援聲明；source PR 與 coding plan 完成不代表產品驗收。 |
 
 這些限制未解除前，保留 PLAN.md 的未完成項目，不以文件完成代替實作與驗收。
