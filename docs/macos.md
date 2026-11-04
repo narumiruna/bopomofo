@@ -32,9 +32,11 @@ The build includes the default data attribution and OGDL-Taiwan-1.0 text as `Lex
 - `platforms/macos/build/build-evidence.txt` records the architecture, SDK, compiler, and executable/lexicon SHA-256 values. Build files are ignored by Git.
 - Signing with a distribution identity, notarization, universal builds, and publication are outside this task.
 
-`test.sh` runs noninteractive Swift logic tests, builds a fixture bundle and saves its checksum, then rebuilds the default CNS bundle. Swift-to-C-ABI tests use both datasets independently. The script also checks Bash syntax and runs management-script dry runs. Test executables use Foundation only. They do not create an `IMKServer`, open native windows, or register an input source.
+`test.sh` runs noninteractive Swift logic tests, builds a fixture bundle and saves its checksum, then rebuilds the default CNS bundle. Swift-to-C-ABI tests use both datasets independently. The final bundle is CNS, not the fixture or Unicode bundle needed by the other native cases. The script also checks Bash syntax and runs management-script dry runs. Test executables use Foundation only. They do not create an `IMKServer`, open native windows, or register an input source.
 
 ### Evidence
+
+The following dated records are historical. Record current-source checks separately in the [validation register](native-validation.md). These records do not establish native acceptance after a rebase.
 
 Recorded on 2026-10-28 with macOS 26.6.2 (25G83), arm64, Apple Swift 6.4, and `/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk`:
 
@@ -184,9 +186,21 @@ Use the actual backup name; the example is not an existing artifact. Restore doe
 
 ## Authorized native smoke test
 
-No row below is passed. Record the OS/build, CPU architecture, app/version, executable and lexicon hashes from `build-evidence.txt`, display arrangement, steps, and outcome in the native-validation record. Do not record private input content. Use only the public fixture text below.
+No row below is passed. Record the OS/build, CPU architecture, app/version, executable and lexicon hashes from `build-evidence.txt`, display arrangement, steps, and outcome in the [native-validation record](native-validation.md#native-result-record). Verify the installed bundle's executable and lexicon hashes against the selected build before each case set. Do not record private input content. Use only the public test text below.
 
-1. Authorize and inspect installation separately. Manually add/enable `Bopomofo Development` in Input Sources. Do not assume a successful bundle build proves it loads.
+The fixture, CNS, and Unicode case sets require separate builds. `build.sh` always replaces the same `platforms/macos/build/Bopomofo Development.app` and `build-evidence.txt`. Before each rebuild, preserve the previous bundle and its evidence in a separate local directory. All variants use the same development identity; do not install them side by side. A rebuild does not update an installed bundle. Each installed-bundle update, registration, activation, or settings change needs explicit scoped authorization.
+
+### Fixture bundle cases
+
+Build the 39-entry fixture bundle before steps 1–7:
+
+```bash
+bash platforms/macos/scripts/build.sh fixtures/lexicon.tsv
+```
+
+Expected lexicon SHA-256: `c54ced5e1e44472337f9bb5c5b8fe41e7a692a33dbfa8d360991704888f11dcd`. This is the original fixture file copied by `build.sh`, not a `build-lexicon` normalized export. Do not use the default CNS bundle for these `basic.jsonl` expectations.
+
+1. Obtain explicit installation/update and activation authorization for this fixture bundle. Inspect installation separately, then manually add/enable `Bopomofo Development` in Input Sources. Do not assume a successful bundle build proves it loads.
 2. In a new document, type `1`, `8`, then Space. Expected: marked `八`, no commit yet. Press Enter. Expected: one `八`, no marked text. A second Enter must reach the app and must not insert a second `八`.
 3. Type `s u 3 c l 3`. Expected: marked `你好`. Move Home/Right/End. Check the caret and native range. Press Escape. Expected: no committed text and no remaining mark.
 4. Type `1 8 Space Down`. Expected: native candidate panel. Use Down/Up and Page Down/Page Up, then numeric selection. Expected: the selected text remains marked; Enter then commits it once.
@@ -199,11 +213,35 @@ No row below is passed. Record the OS/build, CPU architecture, app/version, exec
    - Press Caps Lock through both latch changes. Each transition must change mode once, not twice.
    - Check repeat and key-up behavior. Shortcuts such as Command+A/C/V must pass through unchanged; the IME must not access the clipboard itself.
 7. Start a composition in an ordinary field, then focus a secure/password field and a field that disables IME. Expected: the old mark and panel close, no old text is committed, and the host restriction remains in force. Return to an ordinary field: the new composition must be empty. Do not use a fallback input path.
-8. Build a separate test bundle with `bash platforms/macos/scripts/build.sh fixtures/unicode/lexicon.tsv`. Preserve the default bundle and its hashes first. This build does not authorize installation. Use the self-authored [`Unicode replay`](../fixtures/unicode/cases.jsonl) only after scoped installation/activation approval.
-   - Type `u Space Home End Down 1 Enter Enter`. Expected: marked `𠀀é😀`, Home at UTF-16 offset 0, End and selected text at offset 6, one commit, then no repeated commit. The core cursor is 11 UTF-8 bytes; neither 11 bytes nor four Unicode scalars is the native range length. Do not split a surrogate pair or the combining sequence.
-   - Repeat `u Space Escape`. Expected: no marked text, candidates, or commit. Record both the Unicode lexicon hash and the rebuilt executable hash; baseline hashes do not identify this bundle.
 
-With the default CNS data, also test `j i 3` → marked `我`, and `u 4 Down` → 154 candidates. Page Down 17 times, then press `1`: expected marked `齸`. Enter must commit it once. Check the tail page with the mouse as a separate native callback test. These results remain unverified.
+### CNS default bundle cases
+
+Preserve the fixture bundle and its evidence, then build the default CNS bundle separately:
+
+```bash
+bash platforms/macos/scripts/build.sh
+```
+
+Expected lexicon SHA-256: `f279ff2faa8bc40814e300253cda97c162003a0b6650fdfa0484f4075d0b300a`. Obtain scoped installation/update and activation authorization for this build, then verify the installed hashes. Neither the fixture bundle nor the Unicode bundle can validate these cases. Use the public [`CNS replay`](../fixtures/cns11643.jsonl) as the fixed case reference.
+
+1. In a new composition, type `j i 3`. Expected: marked `我`. Press Escape to cancel without commit. Repeat with `e j i 6`: expected marked `國`, then cancel.
+2. Type `u 4 Down`. Expected: 154 candidates in total, with nine per full page. Press Page Down 17 times from page 0. Expected: page 17 contains only `齸`, at absolute index 153. Press `1`: expected marked `齸`, no commit. Enter must commit it once; a second Enter must reach the app without another IME commit.
+3. Reopen the tail page and select `齸` with the mouse as a separate native callback test. Expected: marked `齸`, no commit until Enter, then exactly one commit. A rejected click is a failed case, not permission to add text-only callback matching.
+
+These results remain unverified. Prior fixture-only evidence does not validate CNS candidate rendering or callbacks.
+
+### Unicode bundle cases
+
+Preserve the CNS bundle and its evidence, then build a separate Unicode test bundle:
+
+```bash
+bash platforms/macos/scripts/build.sh fixtures/unicode/lexicon.tsv
+```
+
+Expected lexicon SHA-256: `fb064cc2a15d749eca43085379c8bdc7eb0de6e99481e1377fd0d7e47056b7c4`. This build does not authorize installation. Use the self-authored [`Unicode replay`](../fixtures/unicode/cases.jsonl) only after scoped installation/update and activation approval and installed-hash verification. Record both the Unicode lexicon hash and the rebuilt executable hash; fixture and CNS hashes do not identify this bundle.
+
+1. Type `u Space Home End Down 1 Enter Enter`. Expected: marked `𠀀é😀`, Home at UTF-16 offset 0, End and selected text at offset 6, one commit, then no repeated commit. The core cursor is 11 UTF-8 bytes; neither 11 bytes nor four Unicode scalars is the native range length. Do not split a surrogate pair or the combining sequence.
+2. Repeat `u Space Escape`. Expected: no marked text, candidates, or commit.
 
 ### Pending application and display matrix
 

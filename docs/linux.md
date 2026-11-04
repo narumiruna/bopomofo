@@ -104,7 +104,7 @@ The base Ubuntu image is pinned by digest in `ci/Dockerfile`. The build download
 | Fcitx5 5.1.7 / xkbcommon 1.6.0 / nlohmann_json 3.11.3 | Linked into an ELF64 AArch64 addon with `--no-undefined`. Factory symbol exported; Rust ABI symbols remain private. |
 | Build-time and CTest ABI version | Passed with header/library version 1. |
 | C++ ABI/replay/headless Fcitx API contract | The nine shared fixture cases use the 39-entry lexicon; the CNS replay uses its own verified lexicon in a separate CTest. Includes checksum tampering/missing manifest, 100 repeated independent handle pairs, invalid event/UTF-8/null input, read-only probe, Unicode byte cursor, one-shot commit, native candidate page/digit/click, captured stale selection/pager, lifecycle, reset while Shift remains held, Enter aliases, remapped Ctrl/Escape/Caps positions, and immediate Sensitive-only capability cancellation without a key. |
-| C++ AddressSanitizer + UndefinedBehaviorSanitizer | Before the CNS rebase, clean Debug C++ build and CTest 5/5 passed with leak detection and halt-on-error. The independent known-gap case also reproduced the gap, 1/1. Rust staticlib and system SDK libraries were not sanitizer-instrumented. |
+| C++ AddressSanitizer + UndefinedBehaviorSanitizer | Current CNS rebase: clean Debug C++ build and CTest 7/7 passed with leak detection and halt-on-error. The independent known-gap case also reproduced the gap, 1/1. Rust staticlib and system SDK libraries were not sanitizer-instrumented. |
 | Install/uninstall dry-run and Bash syntax | Passed. No apply operation ran. |
 | DBus delayed rendered-index selection | `known_gap_reproduced_dbus_stale_rendered_index`: known gap reproduced by the existing controlled current-list lookup model. Not an end-to-end native test or safety pass; P6 remains blocked. |
 | Linux x86_64 build | Passed: native Ubuntu 24.04 CI build/ABI/4 CTests at `f65a705`. No desktop checks. |
@@ -237,7 +237,15 @@ UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
   ctest --test-dir target/fcitx5-sanitized --output-on-failure
 ```
 
+### CNS rebase checks — 2026-11-04 UTC
+
+The combined source/data snapshot is `9e8344caf48aabfa4019df000d232a2be6304e264aeb128a95b7bff4fdc4f415`, 112 paths. A clean Release build and a clean Debug C++ ASan/UBSan build each passed **7/7 CTests**. This retains all nine shared fixture replays / 358 records, the 81-record CNS replay with its own verified lexicon, wrong-lexicon rejection, and the independent known-gap reproducer. Both command modes also rejected invalid argument counts. The known-gap case ran separately, **1/1 per profile**; no stale rendered-click safety pass is claimed.
+
+The source snapshot stayed unchanged during the checks. Docker/SDK versions match the Section E environment below. Rust and system SDK libraries remain uninstrumented. Current artifact hashes and build evidence are in the [CNS rebase validation record](native-validation.md#cns11643-rebase--2026-11-04-utc); raw logs and CTest XML are ignored under `target/cns11643-rebase-evidence/linux/`. These are headless checks, not installed addon, DBus/client timing, X11/Wayland, or desktop evidence.
+
 ### Section E evidence — 2026-11-04 UTC
+
+This section retains the pre-CNS-rebase snapshot and its 5-test evidence. It does not replace the current 7-test recheck above.
 
 - Source: base `23d14acf2439baba1da01fc1f9f0cc6a60e0e4fb` plus shared working-tree changes. The tested Linux/Rust/header/root-fixture input hashes were unchanged before and after all checks. Input-list SHA-256: `945111e218e6b541bb8d846f85b2f182ecba6c40f19795059f9d46f5688da38f`. Unrelated documents/scripts and separate-lexicon fixtures are outside this build's scope.
 - Tested `contract.cpp` SHA-256: `cf4fc1a5d945177f0339a8fa3f7eb3a0d60bea58dcf01bf8cfbc6258e7d4a987`; `CMakeLists.txt`: `83338569d2650cf65bcd1ba6fa6d52f675a8a0dfc7d3a4ebaecaaa4207b2e78e`.

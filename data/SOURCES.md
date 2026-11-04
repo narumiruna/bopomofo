@@ -8,7 +8,7 @@
 
 **2026-10-29 UTC** 另查核 CNS11643 官方資料集、授權與字區，取得固定 snapshot 並新增離線 importer。Repository 只保存核准字區的文字資料、產物與 notices；不保存 ZIP archives，也不匯入其他輸入引擎的程式碼。
 
-**2026-11-05（UTC+08:00）** 的補查只處理 Unihan、CC-CEDICT 與 McBopomofo 的未解項。只下載相關文件、notices 與 pinned repository file list，仍放在 repository 外。該次補查沒有重新下載外部詞庫、匯入 entries、建立專用 importer 或執行外部 engine。補查結果及負責角色見 [Source decision and handoff](#source-decision-and-handoff)。
+**2026-11-05（UTC+08:00）** 的補查只處理 Unihan、CC-CEDICT 與 McBopomofo 的未解項。CNS11643 沿用 2026-10-29 的核准紀錄，明確排除於本次重新查核範圍。只下載相關文件、notices 與 pinned repository file list，仍放在 repository 外。該次補查沒有重新下載外部詞庫、匯入 entries、建立專用 importer 或執行外部 engine。補查結果及負責角色見 [Source decision and handoff](#source-decision-and-handoff)。
 
 - 保留根目錄 `LICENSE` 的 GNU AGPL v3 policy，不更換專案授權。
   - 自製 fixtures 依 repository 的 AGPL policy 管理，不另加新的 license。
@@ -257,7 +257,7 @@ README 記載 counts 由 1998 年收集的 Taiwan web pages 抽樣 1,200,000 頁
 
 ## Source decision and handoff
 
-2026-11-05 補查沒有選定正式來源，也沒有解除 import／release gate。可採用範圍與未解項如下；其他來源維持原紀錄，不在本次重查。
+2026-11-05 補查沒有選定或核准新的正式 phrase／frequency 來源，也沒有解除其 import／release gate。下列判定不取代已核准的 CNS11643 單字補充紀錄；CNS11643 與其他未列來源不在本次重查範圍。
 
 | 來源／逐檔範圍 | 權利判定與可評估用途 | 仍不能提供的內容 |
 | --- | --- | --- |
@@ -283,7 +283,7 @@ README 記載 counts 由 1998 年收集的 Taiwan web pages 抽樣 1,200,000 頁
 
 ### Required evidence and owners
 
-以下項目須在對應來源匯入前完成。負責角色是 handoff owner，不表示已取得其確認或 rights-holder grant。
+以下項目適用於尚未核准的來源，須在對應來源匯入前完成；不要求重做既有 CNS11643 單字 importer。負責角色是 handoff owner，不表示已取得其確認或 rights-holder grant。
 
 | 未解項 | 負責角色 | 必要證據／驗收條件 |
 | --- | --- | --- |
@@ -309,4 +309,4 @@ README 記載 counts 由 1998 年收集的 Taiwan web pages 抽樣 1,200,000 頁
 5. 驗證 syllables、tone、重複 entries、缺失 reading 及無效 score。不得靜默為 phrase 猜測讀音，或把不同來源的 counts 當成可直接比較的 frequency。
 6. 保存 data notices，並查核產物的 license obligations 與現有 AGPL policy。取得 release 授權後才可發布。
 
-本次 CNS11643 單字補充不解除下列 blocked 項目：可供產品使用且權利完整的 Traditional Chinese phrase lexicon、適合 Taiwan 使用情境的 phrase frequency、完整 notice bundle，以及可重建的正式 data artifact。Core 原型可用自製 fixture 繼續；產品品質、代表性 benchmark 與正式資料散布驗收不能據此通過。
+本次核准只涵蓋上述 CNS11643 單字補充、既有 importer、notices 與固定產物。下列 production 項目仍 blocked：可供產品使用且權利完整的 Traditional Chinese phrase lexicon、適合 Taiwan 使用情境的 phrase frequency、這些來源的完整 notice bundle，以及可重建的正式 phrase／frequency data artifact。Core 開發可用自製 fixture 與核准的 CNS11643 補充繼續；產品品質、代表性 benchmark 與正式資料散布驗收不能據此通過。

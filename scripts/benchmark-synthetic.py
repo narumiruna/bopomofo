@@ -85,7 +85,7 @@ def replay_bytes(entries):
     candidates = [{"text": "詞01", "start": 63, "end": 64}]
     candidates.extend(
         {"text": f"候選{index:03d}", "start": 63, "end": 64}
-        for index in range(1, 128)
+        for index in range(1, 256)
     )
     key("down", {"preedit": text64, "selecting": True, "candidates": candidates})
     key("page_down", {"page": 1, "candidate_index": 9})
@@ -94,6 +94,15 @@ def replay_bytes(entries):
         "preedit": selected,
         "selecting": False,
         "cursor": len(selected.encode("utf-8")),
+    })
+    key("down", {"preedit": selected, "selecting": True, "candidates": candidates})
+    for page in range(1, 29):
+        key("page_down", {"page": page, "candidate_index": page * 9})
+    selected_tail = decoded_prefix(63) + "候選255"
+    key("4", {
+        "preedit": selected_tail,
+        "selecting": False,
+        "cursor": len(selected_tail.encode("utf-8")),
     })
     key("backspace", {"preedit": decoded_prefix(63)})
     key("home", {"cursor": 0})
@@ -143,7 +152,9 @@ def source_identity():
     names = [
         name for name in names
         if name in (".gitattributes", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml")
-        or name.startswith(("crates/", "platforms/", "fixtures/", ".github/", "scripts/"))
+        or name.startswith((
+            "crates/", "platforms/", "fixtures/", ".github/", "scripts/", "data/cns11643/",
+        ))
     ]
     checksum = hashlib.sha256()
     for name in names:
@@ -152,7 +163,7 @@ def source_identity():
         "base_commit": run("git", "rev-parse", "HEAD").decode().strip(),
         "snapshot_sha256": checksum.hexdigest(),
         "paths": len(names),
-        "method": "sorted path + NUL + bytes + NUL; source/build/fixture/scripts inputs only",
+        "method": "sorted path + NUL + bytes + NUL; source/build/fixture/scripts/CNS inputs only",
     }
 
 

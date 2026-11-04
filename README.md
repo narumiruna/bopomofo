@@ -22,6 +22,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --all-targets
 cargo run -p ime-cli -- replay fixtures/lexicon.tsv fixtures/basic.jsonl
+cargo run -p ime-cli -- replay data/cns11643/lexicon.tsv fixtures/cns11643.jsonl
 ```
 
 Replay 每行輸出一份 JSON Output。它只處理明確提供的測試事件，不連接系統鍵盤。
@@ -40,7 +41,9 @@ cargo run --release -p ime-cli -- benchmark fixtures/lexicon.tsv fixtures/limit-
 
 `fixtures/lexicon.tsv` 保留為自製測試資料。macOS 預設開發 bundle 改用 CNS11643 Taiwan 常用／次常用字補充：13,052 字、16,496 字音 pairs，加上原有五筆自製詞組。資料來源、獨立授權與離線重建方式見 [CNS11643 guide](data/cns11643/README.md)。
 
-CNS 字音與 fixture scores 都不是實測 phrase frequency。此資料可補充單字候選，但不能證明正式詞組品質、代表性效能或 native IME 驗收。
+Baseline replays（含 `basic.jsonl`）仍搭配 39-entry `fixtures/lexicon.tsv`；`cns11643.jsonl` 只搭配 CNS 詞庫。Quality 與 Unicode cases 各用同目錄的獨立詞庫，不能加入 baseline replay glob；完整配對見 [fixture notes](fixtures/README.md#replay-pairing)。macOS baseline native smoke cases 須先明確建立 fixture bundle；CNS 與 Unicode cases 使用各自的 build 與 hashes，見 [macOS guide](docs/macos.md#authorized-native-smoke-test)。
+
+CNS character scores 與 fixture scores 都不是實測 phrase frequency。此資料可補充單字候選，但不能證明正式詞組品質、代表性效能或 native IME 驗收。
 
 ## Platform builds and installation
 

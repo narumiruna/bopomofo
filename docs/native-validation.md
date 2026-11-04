@@ -10,7 +10,48 @@ Rust tests、platform build、headless contract tests 與 desktop checks 是不�
 
 首次本機驗證與 CI commit `c6d2e2c` 的 source/build/fixture snapshot 包含 87 個路徑，SHA-256 為 `6de256861cf932740b1f0874e7b14133aae70737541c6823f05709f07145b2b8`。計算法為：以 `git ls-files --cached --others --exclude-standard -z` 列出 `.gitattributes`、Cargo manifests／lock、toolchain、`crates/`、`platforms/`、`fixtures/`、`.github/`，依路徑排序後，逐筆串接 `path + NUL + contents + NUL` 再取 SHA-256。
 
+## CNS11643 rebase — 2026-11-04 UTC
+
+PR #3 從 `8392601b44d86fe2989f1b8d252eb64ed5c56d4e` rebase 到已合併 PR #4 的 `main` commit `8b0b7b2d8c4bac80d7af95102fb53cd50fa78941`。保留兩個原始 commits 的用途與全部九個 CNS data/license/notice blobs，與 rebase 前逐檔 bytes 相同。未重新下載或擴大資料來源。
+
+Rebase 前 format／Clippy 與 workspace debug **91 tests** 通過。下列結果由合併後的最終 source 重跑，不沿用先前 binaries 或 CI。112 個 source/build/fixture/script/CNS paths 的 snapshot SHA-256 為 `9e8344caf48aabfa4019df000d232a2be6304e264aeb128a95b7bff4fdc4f415`；計算法與完整 reports 見 [benchmark method](benchmarks/README.md#retained-reports)。Report 的 `base_commit` 是 reconciliation commit 前的 rebased HEAD `87ba8f994573cae52b334e3153a6e5637d0c2e11`，不是原 PR head 或 upstream base。
+
+Host：macOS 26.6.2 (25G83)、arm64、Apple M4、16 GiB RAM；Rust/Cargo 1.92.0、Apple Swift 6.4、CLT SDK 27.0、uv 0.9.26。Docker 29.4.0／OrbStack，沿用 repository Dockerfile 的 Ubuntu 24.04.5 arm64 image；GCC 13.3.0、CMake 3.28.3、Fcitx5 5.1.7、xkbcommon 1.6.0、nlohmann_json 3.11.3。
+
+| Check | Result / scope |
+| --- | --- |
+| Format / Clippy | Workspace `cargo fmt --all -- --check` 與 `cargo clippy --workspace --all-targets --locked -- -D warnings`，各 exit 0。 |
+| Rust debug / release | 各 **95 passed**：CLI 32、core 41、FFI 6、Windows portable 16。包含 PR #4 的 capacity/failure tests 與 CNS importer/replay tests。 |
+| Focused fixtures / CNS | `repository_fixtures` 各 profile **3/3**、`cns11643` 各 profile **5/5**。重建後的 debug/release CLI 對 **12 corpora／467 records** 逐檔產生相同 stdout；CNS 81 records 獨立搭配 CNS lexicon。 |
+| Importer rebuild | Debug 與 release 各執行一次 importer，兩份 lexicon bytes 與 summaries 相同，且分別與 retained `lexicon.tsv`、`build.json` 完全相同。非法資料、input/output alias 與 atomic replace failure 仍由原 CNS tests 驗證。 |
+| Synthetic integration | Python **9/9**；三個固定 profiles 均驗證、兩次 canonical build、debug/release/repeated replay 及兩次 100-repetition release benchmark，exit 0。Snapshot 現為 **256 candidates**，明確驗證 page 28／index 252 後以 key `4` 選取 index 255；expectations 依規格手工推導。 |
+| macOS arm64 | `bash platforms/macos/scripts/test.sh` exit 0：fixture/CNS 分開建立與驗證，**127** pure adapter assertions、**122** actual C ABI assertions、**16** management dry-run cases；plist、ABI v1、SHA-256、ad-hoc signature 與 strict verification 通過；bundled project/data licenses 與 notices 逐檔 bytes 相同。 |
+| Windows portable / cross-check | Portable **16 tests**；x64／x86／ARM64 各自 `cargo check` 與 Clippy all-targets/locked，exit 0。這些不 link 或執行 Windows DLL；當前 hosted build/loader 證據另列於 [PR #3](https://github.com/narumiruna/bopomofo/pull/3)，不得沿用舊 source checks。 |
+| Linux clean Release | 空目錄 build、ABI v1、CTest **7/7**；九份 shared replays／358 records 與 CNS 81-record replay 使用各自 lexicon。Wrong-lexicon negative CTest 明確拒絕錯誤配對。 |
+| Linux C++ ASan/UBSan | 空目錄 Debug build，CTest **7/7**，leak detection／halt-on-error，無 sanitizer error。C++ adapter/test translation units 有 instrumentation；Rust release archive 與 system SDK **未** instrumentation。 |
+| Fcitx known gap / dispatch | 獨立 known-gap case 每 profile **1/1 reproduced**；`--replay-only` 與 `--known-gap-reproduced` 的 missing/extra argument checks 均拒絕。這不是 stale rendered-click safety pass；addon selection policy 未改。 |
+| Offline Release / workflow | 原 stub suite **20/20**、Bash syntax、PyYAML 6.0.3 parsing **3/3**、pinned actionlint 1.7.9，exit 0。Optional ShellCheck/Pyflakes 未執行；沒有 hosted Release、real draft creation 或 publication。 |
+| Review | Main 與獨立 read-only audit 未發現 blocking integration defect；原 CNS code/data 與 PR #4 邊界 tests、來源調查、replay pairing、known-gap case 均保留。 |
+
+三份 [synthetic reports](benchmarks/README.md) 記錄初始化、p50/p95/p99、實際 compiler、OS/CPU、source/data/build hashes 與 process RSS sample。每 run 的總 events 為 32,500／32,500／32,600，均低於 1,000,000。Lexicon bytes／checksums 不變，corpus 因 256-candidate/tail selection expectations 更新。所有 reports 保留 `fixture_only`；RSS 不是 peak，shared host 未固定 CPU affinity/frequency，不能當作代表性 Taiwan corpus 的 p95 < 5 ms 證據。
+
+| Final local artifact | SHA-256 |
+| --- | --- |
+| Release CLI | `aed88b416a637c5d8d2b56468971674716aa0e002bb72e095136d4dfbb80da93` |
+| macOS executable | `f45d9a43b0fda14ebd2d1861e56e44cc12b0b994ba3c32b2113b7cd0cc0dbb86` |
+| macOS CNS lexicon | `f279ff2faa8bc40814e300253cda97c162003a0b6650fdfa0484f4075d0b300a` |
+| macOS CNS manifest | `5a23a538e9f6e20ba5690225b2ac2a8cada5cb97ff78070dcf82436a5dac14e5` |
+| Linux Release addon | `75bbef5ab9007d1c4cabb5969dce91225e7f9295a4f48017ef6c824d2a0647c5` |
+| Linux C++ ASan/UBSan addon | `e06c2b4ea1c7902e6cf281e20faba61ba928cc73faa3bdbe92a6981f0f9009ea` |
+| Linux Rust archive, both profiles | `ea8b1aed85cfe3b64febe924f330943b5dbe9caf148e95f0258d7b09e1826fe5` |
+
+Linux addon 仍使用 39-entry fixture 作為預設開發 package，另以 CNS lexicon 執行 CNS replay。Build-local prefix 可影響 addon bytes，不宣稱 native binary 可重建為相同 bytes。Linux final log SHA-256：`c7edfe50075249fcb5eba2b103c5527d2878a1bd4eb676977eb38963b11d7de2`。Source snapshots、logs、CTest XML、importer rebuilds 與 binaries 只留在 ignored `target/cns11643-rebase-evidence/` 或平台 build directory。
+
+本次必要本機 gates 無失敗／受阻。Installed native IME/app/display checks、Fcitx stale-rendered-index correction、正式 phrase/frequency、代表性效能、hosted Release/draft 與 publication 仍未驗證或 blocked。macOS native handoff 已區分 fixture → CNS → Unicode bundle，逐次保留 matching hashes 並要求 scoped authorization。沒有安裝、註冊、啟用、移除 IME，沒有修改系統設定、建立本專案 version tag、推送 tag、dispatch Release 或發布 artifact。
+
 ## IME readiness checks — 2026-11-04 UTC
+
+本節保留 PR #4 在 CNS rebase 前的歷史證據，不代表目前 CNS source 的重驗結果。該版 synthetic reports 見 [commit `86dec47`](https://github.com/narumiruna/bopomofo/tree/86dec473e68cd4762cb0fb0ae609dc7090fb7c82/docs/benchmarks)。Repository 內的 reports 由本次 CNS rebase 重跑更新。
 
 本次 coding work 以 `origin/main` commit `23d14acf2439baba1da01fc1f9f0cc6a60e0e4fb` 為 base，branch 為 `narumi/feat/ime-readiness`。相較 plan 原定的 `7b20300`，base 只新增 `.gitignore` 規則。起始 working tree 只有使用者提供、尚未追蹤的本次 plan；未丟棄其他變更。下列紀錄與歷史證據分開，不沿用舊 run 作為本次 source 的驗收。
 
@@ -30,7 +71,7 @@ Rust tests、platform build、headless contract tests 與 desktop checks 是不�
 
 ### Final source and agent checks
 
-G1 在本次最終 source 上重跑。100 個 source/build/fixture/script paths 的 snapshot SHA-256 為 `a731bd22999df61da7e3a8a381d8de3d4a26c30b08a717a7f100bb72d658f60a`；計算法與排除範圍見 [synthetic benchmark method](benchmarks/README.md#retained-reports)。所有三份 reports 均核對此 snapshot。`docs/` 文件與 reports 不參與該 hash，避免自我相依；`fixtures/` 內的 README 仍屬於 fixture inputs。
+G1 在本次最終 source 上重跑。100 個 source/build/fixture/script paths 的 snapshot SHA-256 為 `a731bd22999df61da7e3a8a381d8de3d4a26c30b08a717a7f100bb72d658f60a`；計算法與排除範圍見 [synthetic benchmark method](benchmarks/README.md#retained-reports)。PR #4 當時的三份 reports 均核對此 snapshot；本次 rebase 的 reports 使用新的 source/data snapshot。`docs/` 文件與 reports 不參與該 hash，避免自我相依；`fixtures/` 內的 README 仍屬於 fixture inputs。
 
 | Check | Result / evidence | Scope / limit |
 | --- | --- | --- |
@@ -66,7 +107,7 @@ Linux addon 內含 build-local prefix，因此重新選取 temporary build path 
 
 ### Synthetic measurements
 
-[方法與完整兩次 reports](benchmarks/README.md) 保留 generated/canonical lexicon、corpus、replay-output hashes、source/build IDs、實際 compiler、OS／CPU 與分布。Host 為上述 Apple M4／macOS arm64；shared development host 未固定 CPU affinity／frequency，且同時執行其他 checks。以下每格依 run 1／run 2 列出：
+[PR #4 的方法與兩次 reports](https://github.com/narumiruna/bopomofo/tree/86dec473e68cd4762cb0fb0ae609dc7090fb7c82/docs/benchmarks) 保留當時的 generated/canonical lexicon、corpus、replay-output hashes、source/build IDs、實際 compiler、OS／CPU 與分布。Host 為上述 Apple M4／macOS arm64；shared development host 未固定 CPU affinity／frequency，且同時執行其他 checks。以下每格依 run 1／run 2 列出：
 
 | Entries | Initialization ns | p50 ns | p95 ns | p99 ns | Process RSS sample bytes |
 | --- | --- | --- | --- | --- | --- |
