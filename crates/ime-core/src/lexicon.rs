@@ -351,6 +351,42 @@ mod tests {
     }
 
     #[test]
+    fn maximum_entry_count_loads_and_one_more_is_rejected() {
+        use std::fmt::Write;
+
+        let syllables = [
+            "ㄧ", "ㄨ", "ㄩ", "ㄚ", "ㄛ", "ㄜ", "ㄞ", "ㄟ", "ㄠ", "ㄡ", "ㄢ", "ㄣ", "ㄤ", "ㄥ",
+            "ㄦ", "ㄇㄚ",
+        ];
+        let mut source = format!("{HEADER}\n");
+        for index in 0..MAX_ENTRIES {
+            let group = index / MAX_CANDIDATES_PER_READING;
+            writeln!(
+                source,
+                "{} {} {}\tx{index:06}\t{}",
+                syllables[(group >> 8) & 15],
+                syllables[(group >> 4) & 15],
+                syllables[group & 15],
+                u32::MAX,
+            )
+            .unwrap();
+        }
+        assert!(source.len() < 32 * 1024 * 1024);
+        let lexicon = Lexicon::parse(&source).unwrap();
+        assert_eq!(lexicon.entries().len(), MAX_ENTRIES);
+        assert_eq!(
+            lexicon.total_frequency(),
+            MAX_ENTRIES as u64 * u64::from(u32::MAX)
+        );
+        assert_eq!(lexicon.lookup(&reading("ㄧ ㄧ ㄧ")).len(), 256);
+        drop(lexicon);
+        source.push_str("ㄇㄚ\textra\t1\n");
+        let error = Lexicon::parse(&source).unwrap_err();
+        assert_eq!(error.kind, LexiconErrorKind::TooManyEntries);
+        assert_eq!(error.line, MAX_ENTRIES + 2);
+    }
+
+    #[test]
     fn phrase_text_and_candidate_resource_caps() {
         let at_limit = vec!["ㄧ"; MAX_PHRASE_SYLLABLES].join(" ");
         assert!(parse_records(&format!("{at_limit}\t一\t1")).is_ok());

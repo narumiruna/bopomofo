@@ -106,6 +106,30 @@ fn digest(bytes: &[u8]) -> String {
 }
 
 #[test]
+fn reading_candidate_limit_rejects_import_without_overwriting() {
+    let fixture = Fixture::new();
+    let mut source = String::from("# bopomofo-lexicon-v1\n");
+    for index in 0..256 {
+        source.push_str(&format!("ㄧ\t候選{index:03}\t1\n"));
+    }
+    let input = fixture.write("boundary.tsv", &source);
+    let destination = fixture.path("canonical.tsv");
+    success(&cli().arg("validate-lexicon").arg(&input).output().unwrap());
+    success(&build(&input, &destination));
+    let preserved = fs::read(&destination).unwrap();
+    source.push_str("ㄧ\t超限\t1\n");
+    fixture.write("boundary.tsv", source);
+    let rejected = cli().arg("validate-lexicon").arg(&input).output().unwrap();
+    failure(&rejected, "invalid_lexicon");
+    assert!(rejected.stdout.is_empty());
+    let rejected = build(&input, &destination);
+    failure(&rejected, "invalid_lexicon");
+    assert!(rejected.stdout.is_empty());
+    assert_eq!(fs::read(destination).unwrap(), preserved);
+    fixture.assert_no_staged_files();
+}
+
+#[test]
 fn arguments_are_required_and_unknown_commands_are_rejected() {
     for args in [
         vec![],

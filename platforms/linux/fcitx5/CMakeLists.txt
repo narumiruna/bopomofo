@@ -75,6 +75,9 @@ if(BUILD_TESTING)
     file(GLOB REPLAY_FIXTURES CONFIGURE_DEPENDS "${REPOSITORY_ROOT}/fixtures/*.jsonl")
     add_test(NAME adapter_contract COMMAND bopomofo_contract "${CMAKE_BINARY_DIR}/lexicon.tsv"
         "${CMAKE_BINARY_DIR}/lexicon.sha256" ${REPLAY_FIXTURES})
+    add_test(NAME known_gap_reproduced_dbus_stale_rendered_index COMMAND bopomofo_contract
+        --known-gap-reproduced "${CMAKE_BINARY_DIR}/lexicon.tsv" "${CMAKE_BINARY_DIR}/lexicon.sha256")
+    set_tests_properties(known_gap_reproduced_dbus_stale_rendered_index PROPERTIES LABELS "known-gap;headless")
     add_test(NAME install_dry_run COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install.sh" "${CMAKE_BINARY_DIR}")
     add_test(NAME uninstall_dry_run COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/scripts/uninstall.sh" "${CMAKE_BINARY_DIR}")
 endif()

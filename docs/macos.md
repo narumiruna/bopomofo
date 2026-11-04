@@ -170,15 +170,18 @@ No row below is passed. Record the OS/build, CPU architecture, app/version, exec
 2. In a new document, type `1`, `8`, then Space. Expected: marked `八`, no commit yet. Press Enter. Expected: one `八`, no marked text. A second Enter must reach the app and must not insert a second `八`.
 3. Type `s u 3 c l 3`. Expected: marked `你好`. Move Home/Right/End. Check the caret and native range. Press Escape. Expected: no committed text and no remaining mark.
 4. Type `1 8 Space Down`. Expected: native candidate panel. Use Down/Up and Page Down/Page Up, then numeric selection. Expected: the selected text remains marked; Enter then commits it once.
-   - Repeat using the mouse on a final candidate. Check native callback selection and attribute retention.
-   - Open a list, reset/switch focus, and open another list. A delayed callback from the old list must not change the new composition.
+   - Use the exact `1 8 Space Down Page Down 1 Enter Enter` sequence in [`basic.jsonl`](../fixtures/basic.jsonl). Expected: marked `豝` after selection, one commit `豝`, then an app Enter with no repeated text.
+   - Repeat with a final mouse click on `豝` on page two. Expected: marked `豝`, no commit until Enter, then exactly one commit. This tests whether InputMethodKit preserves the publication, generation, and absolute-index attributes. A rejected click is a failed native selection case, not evidence of working candidate UI. Do not add text-only matching as a workaround.
+   - Open a list, switch focus to cancel it, type `1 8 Space Down` in the new field, then deliver a delayed callback captured from the old list through the tester's native callback harness. Expected: no selection, commit, or change to the new field. Record `blocked` if the harness cannot delay a real callback; a standalone token test is not a substitute.
 5. Compose text, then change field, app, input source, or caret with the mouse. Expected: cancellation, hidden candidates, and no hidden commit. Return and verify the new context starts without old composition.
 6. Press and release Shift alone twice. Check Chinese/Latin mode changes. Repeat with Shift plus a letter and with Shift → Control press/release → Shift release. A chord must not toggle mode.
    - Repeat for Option, Command, and Fn. Check both Shift keys and a held ordinary key.
    - Press Caps Lock through both latch changes. Each transition must change mode once, not twice.
    - Check repeat and key-up behavior. Shortcuts such as Command+A/C/V must pass through unchanged; the IME must not access the clipboard itself.
-7. Test a secure/password field and an app field that disables IME. Respect the app restriction; do not use a fallback input path.
-8. For Unicode checks, build with an approved self-authored test lexicon containing non-BMP Han, emoji, and combining output. Check marked text, caret movement, candidate selection, reset, and single commit. The default fixture does not contain that Unicode coverage.
+7. Start a composition in an ordinary field, then focus a secure/password field and a field that disables IME. Expected: the old mark and panel close, no old text is committed, and the host restriction remains in force. Return to an ordinary field: the new composition must be empty. Do not use a fallback input path.
+8. Build a separate test bundle with `bash platforms/macos/scripts/build.sh fixtures/unicode/lexicon.tsv`. Preserve the default bundle and its hashes first. This build does not authorize installation. Use the self-authored [`Unicode replay`](../fixtures/unicode/cases.jsonl) only after scoped installation/activation approval.
+   - Type `u Space Home End Down 1 Enter Enter`. Expected: marked `𠀀é😀`, Home at UTF-16 offset 0, End and selected text at offset 6, one commit, then no repeated commit. The core cursor is 11 UTF-8 bytes; neither 11 bytes nor four Unicode scalars is the native range length. Do not split a surrogate pair or the combining sequence.
+   - Repeat `u Space Escape`. Expected: no marked text, candidates, or commit. Record both the Unicode lexicon hash and the rebuilt executable hash; baseline hashes do not identify this bundle.
 
 ### Pending application and display matrix
 
