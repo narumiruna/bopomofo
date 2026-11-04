@@ -71,14 +71,18 @@ pub(crate) fn build_lexicon(input: &Path, destination: &Path) -> Result<LexiconS
     // Finish reading and validation before opening a destination-side file. This
     // also permits input and destination to name the same file.
     let lexicon = load_lexicon(input)?;
-    let canonical = lexicon.data.to_text();
+    write_lexicon(destination, &lexicon.data)
+}
+
+pub(crate) fn write_lexicon(destination: &Path, lexicon: &Lexicon) -> Result<LexiconSummary> {
+    let canonical = lexicon.to_text();
     if canonical.len() > MAX_INPUT_BYTES {
         return Err(Error::new("output_byte_limit"));
     }
     let summary = LexiconSummary {
         format: "bopomofo-lexicon-v1",
         sha256: checksum(canonical.as_bytes()),
-        entries: lexicon.data.entries().len(),
+        entries: lexicon.entries().len(),
         bytes: canonical.len(),
     };
     StagedFile::create(destination)?.commit(destination, canonical.as_bytes())?;

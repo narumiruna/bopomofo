@@ -81,13 +81,21 @@ class SyntheticTests(unittest.TestCase):
         self.assertTrue(any(record["expect"].get("status") == "limit_reached" for record in records))
         selection = next(record for record in records if record["event"]["key"] == "down")
         candidates = selection["expect"]["snapshot"]["candidates"]
-        self.assertEqual(len(candidates), 128)
+        self.assertEqual(len(candidates), 256)
         self.assertEqual(candidates[0], {"text": "詞01", "start": 63, "end": 64})
-        self.assertEqual(candidates[-1]["text"], "候選127")
+        self.assertEqual(candidates[-1], {"text": "候選255", "start": 63, "end": 64})
         keys = {record["event"]["key"] for record in records}
-        self.assertTrue({"home", "end", "backspace", "delete", "page_down", "2", "escape"} <= keys)
+        self.assertTrue({"home", "end", "backspace", "delete", "page_down", "2", "4", "escape"} <= keys)
         selection_result = next(record for record in records if record["event"]["key"] == "2")
         self.assertEqual(selection_result["expect"]["snapshot"]["preedit"], "詞16詞16詞16詞15候選010")
+        tail_page = next(
+            record for record in records
+            if record["expect"].get("snapshot", {}).get("page") == 28
+        )
+        self.assertEqual(tail_page["expect"]["snapshot"]["candidate_index"], 252)
+        tail_result = next(record for record in records if record["event"]["key"] == "4")
+        self.assertEqual(tail_result["expect"]["snapshot"]["preedit"], "詞16詞16詞16詞15候選255")
+        self.assertFalse(tail_result["expect"]["snapshot"]["selecting"])
         cancellation = next(record for record in records if record["event"]["key"] == "escape")
         self.assertEqual(cancellation["expect"]["snapshot"]["preedit"], "")
         commits = [index for index, record in enumerate(records) if record["expect"]["commit"] is not None]

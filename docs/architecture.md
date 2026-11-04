@@ -4,7 +4,7 @@
 
 本文件定義 bopomofo 的架構與責任邊界。Repository 已建立 Rust core、C ABI、replay CLI 與三平台 adapter。
 
-目前使用自製測試詞庫。Build 與 contract tests 不代表 native desktop 驗收，實際結果見 [native-validation.md](native-validation.md)。
+Core regression tests 使用自製測試詞庫。macOS 預設開發 bundle 使用核准的 CNS11643 常用／次常用單字補充與五筆自製詞組；詳見 [CNS guide](../data/cns11643/README.md)。Build 與 contract tests 不代表 native desktop 驗收，實際結果見 [native-validation.md](native-validation.md)。
 
 第一個跨平台版本使用 Traditional Chinese、標準 Dachen keyboard layout 與完全離線的輸入流程。組字狀態、Zhuyin parser、詞庫索引、斷詞與候選排序均自行以 Rust 實作，不使用 `chewing`、`librime` 或其他現成輸入引擎。
 
@@ -93,7 +93,8 @@ Adapter 必須將透傳 key 的 press／release 與 modifier transitions 送入 
 
 - 單次 composition 最多 64 個音節。
   - 超限時保留既有內容、拒絕新增音節並回報狀態，不靜默丟棄內容或自動 commit。
-- 每份候選快照最多 128 個項目，每頁 9 個；詞組最多 16 個音節。
+- 每份候選快照最多 256 個項目，每頁 9 個；詞組最多 16 個音節。
+  - 上限與單一 reading 的 lexicon 上限相同。CNS11643 的 `ㄧˋ` 有 154 個候選，不可沿用 128 上限隱藏其尾端單字。
 - Decoder 每個位置最多查詢 16 個 span，不列舉所有 segmentation 組合。
 - Decoder 先使用可解釋的詞頻分數與單字 fallback，不加入缺少語料支持的語意模型。
 - 未知讀音不得被靜默刪除。
@@ -181,7 +182,7 @@ flowchart LR
 - 格式不相容、checksum 不符或內容無效時拒絕載入，不以錯誤資料繼續輸入。
 - Rust lexicon parser 最多接受 64 MiB、250,000 筆資料、每個 reading 256 個候選與每筆文字 1,024 bytes。
 - CLI 與 C ABI 的輸入檔上限為 32 MiB；C ABI event JSON 上限為 4,096 bytes。
-- 正式來源未解決前，使用自製最小測試詞庫；不得據此宣稱已通過產品品質、代表性效能或資料散布驗收。
+- 自製 fixture 與已核准的 CNS11643 單字補充須分別保留驗證。正式 phrase／frequency 來源未解決前，不得宣稱已通過產品品質、代表性效能或資料散布驗收。
 - 不自行更換 repository 的 AGPL v3 license；各套件 metadata 與詞庫資料授權仍須核對。
 
 ## Privacy and installation boundaries

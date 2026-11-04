@@ -68,6 +68,28 @@ fn tones_and_enter_commit_exactly_once() {
 }
 
 #[test]
+fn every_allowed_single_reading_candidate_remains_selectable() {
+    let mut source = String::from("# bopomofo-lexicon-v1\n");
+    for index in 0..ime_core::lexicon::MAX_CANDIDATES_PER_READING {
+        source.push_str(&format!("ㄧˋ\t候選{index:03}\t1\n"));
+    }
+    let mut engine = Engine::new(Arc::new(Lexicon::parse(&source).unwrap()));
+    type_keys(&mut engine, "u4");
+    let open = send(&mut engine, "down");
+    assert_eq!(open.snapshot.candidates.len(), 256);
+    for _ in 0..28 {
+        send(&mut engine, "page_down");
+    }
+    assert_eq!(engine.snapshot().page, 28);
+    assert_eq!(send(&mut engine, "4").snapshot.preedit, "候選255");
+    assert_eq!(
+        send(&mut engine, "enter").commit.as_deref(),
+        Some("候選255")
+    );
+    assert_eq!(send(&mut engine, "enter").commit, None);
+}
+
+#[test]
 fn invalid_pending_unknown_reading_and_space_rules() {
     let mut engine = engine();
     assert!(!send(&mut engine, "space").consumed);
@@ -495,7 +517,7 @@ fn bounded_state_machine_fuzz_and_probe_properties() {
         assert_eq!(probe, out.consumed);
         assert_eq!(out, b.handle(event));
         assert!(out.snapshot.preedit.is_char_boundary(out.snapshot.cursor));
-        assert!(out.snapshot.candidates.len() <= 128);
+        assert!(out.snapshot.candidates.len() <= ime_core::lexicon::MAX_CANDIDATES_PER_READING);
         assert!(
             out.snapshot
                 .candidates

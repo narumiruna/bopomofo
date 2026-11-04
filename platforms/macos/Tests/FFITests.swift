@@ -24,7 +24,7 @@ private func keys(_ names: [String], _ engine: CoreEngine) throws -> EngineOutpu
 struct FFITests {
     static func main() {
         do {
-            guard CommandLine.arguments.count == 3 else { throw TestFailure.contract }
+            guard CommandLine.arguments.count == 5 else { throw TestFailure.contract }
             let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
             let pinned = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[2]))
             let lexicon = try VerifiedLexicon(data: data, manifest: pinned)
@@ -172,6 +172,37 @@ struct FFITests {
                 _ = try CoreEngine(lexicon: VerifiedLexicon(data: invalid, manifest: manifest(invalid)))
                 throw TestFailure.contract
             } catch AdapterError.initialization { assertions += 1 }
+            let cnsPath = URL(fileURLWithPath: CommandLine.arguments[3])
+            let cnsData = try Data(contentsOf: cnsPath)
+            let cnsManifest = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[4]))
+            let cnsEngine = try CoreEngine(lexicon: VerifiedLexicon(data: cnsData, manifest: cnsManifest))
+            for (sequence, text) in [
+                (["j", "i", "3"], "我"), (["e", "j", "i", "6"], "國"),
+                (["q", "u", "8", "space"], "啪"), (["z", "u", "l", "4"], "覅"),
+                (["s", "j", "o", "6"], "捼"), (["x", "m", "0", "6"], "孿"),
+                (["x", "m", "0", "3"], "孌"), (["n", "o", "space"], "塞")
+            ] {
+                let composed = try keys(sequence, cnsEngine)
+                try require(composed.status == nil && composed.snapshot.preedit == text)
+                try require(try cnsEngine.send(.key(KeyEvent(key: "enter"))).commit == text)
+            }
+            let all = try keys(["u", "4", "down"], cnsEngine)
+            try require(all.snapshot.candidates.count == 154 && all.snapshot.selecting)
+            var cnsState = PresentationState()
+            _ = try cnsState.accept(all, delivery: 1)
+            let tail = try keys(["u", "4", "down"] + Array(repeating: "page_down", count: 17), cnsEngine)
+            let tailPage = try cnsState.accept(tail, delivery: 2)!
+            try require(tailPage.candidates.count == 1 && tailPage.candidates[0].token.index == 153)
+            let tailCandidate = tailPage.candidates[0]
+            try require(tailCandidate.text == "齸")
+            let tailEvent = cnsState.select(tailCandidate.token, text: tailCandidate.text)!
+            try require(try cnsEngine.send(tailEvent).snapshot.preedit == "齸")
+            try require(try cnsEngine.send(.key(KeyEvent(key: "enter"))).commit == "齸")
+            try require(try cnsEngine.send(.key(KeyEvent(key: "enter"))).commit == nil)
+            try require(cnsState.select(tailCandidate.token, text: tailCandidate.text) == nil)
+            for name in ["Lexicon-NOTICE.txt", "Lexicon-LICENSE.txt", "Project-LICENSE.txt"] {
+                try require(try Data(contentsOf: cnsPath.deletingLastPathComponent().appendingPathComponent(name)).count > 0)
+            }
             print("Swift C ABI integration: \(assertions) assertions passed")
         } catch {
             // Do not print input, output JSON, or error descriptions.

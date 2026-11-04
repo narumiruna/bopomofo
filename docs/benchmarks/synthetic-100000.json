@@ -2,13 +2,13 @@
   "data_kind": "synthetic",
   "scores": "self-authored ranking values, not observed frequency",
   "source": {
-    "base_commit": "23d14acf2439baba1da01fc1f9f0cc6a60e0e4fb",
-    "snapshot_sha256": "a731bd22999df61da7e3a8a381d8de3d4a26c30b08a717a7f100bb72d658f60a",
-    "paths": 100,
-    "method": "sorted path + NUL + bytes + NUL; source/build/fixture/scripts inputs only"
+    "base_commit": "87ba8f994573cae52b334e3153a6e5637d0c2e11",
+    "snapshot_sha256": "9e8344caf48aabfa4019df000d232a2be6304e264aeb128a95b7bff4fdc4f415",
+    "paths": 112,
+    "method": "sorted path + NUL + bytes + NUL; source/build/fixture/scripts/CNS inputs only"
   },
-  "generator_sha256": "7b3445dc558131e01f262d3eb0cb10b51da976335932743c4ad9ee2c2198cb75",
-  "cli_sha256": "17980ac7fe4bdbab31cd09a5b82cf1f863a8e14512023e3404d51dae9de0c005",
+  "generator_sha256": "736d0691b8a2f780ccfed6ae0805c46707bb904ae30257c788b1a2d6fa6b4381",
+  "cli_sha256": "aed88b416a637c5d8d2b56468971674716aa0e002bb72e095136d4dfbb80da93",
   "rustc_verbose": "rustc 1.92.0 (ded5c06cf 2025-12-08)\nbinary: rustc\ncommit-hash: ded5c06cf21d2b93bffd5d884aa6e96934ee4234\ncommit-date: 2025-12-08\nhost: aarch64-apple-darwin\nrelease: 1.92.0\nLLVM version: 21.1.3",
   "cargo_version": "cargo 1.92.0 (344c4567c 2025-10-21)",
   "generated": {
@@ -29,7 +29,7 @@
     "max_phrase_syllables": 16,
     "common_prefix_filler_readings": 390
   },
-  "replay_output_sha256": "412aa9b129b2b663534d7b6ec3480d87a9673f6cfac471dff01ad746e584010d",
+  "replay_output_sha256": "a81cb4b1a22f11f344e0ef90a1516031bfa5e965d39ebe25ae06b8362387bbd1",
   "checks": {
     "deterministic_generation": true,
     "canonical_rebuild_identical": true,
@@ -52,11 +52,11 @@
         "bytes": 3526105
       },
       "corpus": {
-        "sha256": "d66d9c5cc1cbf2745842697197a374da10576f2a50394bb51c400bcc64b4387b",
-        "bytes": 39659,
-        "events": 295,
-        "key_events": 295,
-        "total_events": 29500
+        "sha256": "de40e381adf3e69f7f2822da7bbd0e4cbb46b610d1f2d2803df5c9c416c3ba72",
+        "bytes": 59737,
+        "events": 325,
+        "key_events": 325,
+        "total_events": 32500
       },
       "environment": {
         "os": "macos",
@@ -72,22 +72,22 @@
         "rustc_version_status": "unavailable: compiler version was not embedded at build time"
       },
       "initialization": {
-        "lexicon_parse_ns": 80407375,
+        "lexicon_parse_ns": 79682208,
         "engine_new_ns": 125,
-        "total_ns": 80407500
+        "total_ns": 79682333
       },
       "per_key_latency": {
         "unit": "nanoseconds",
         "percentile_method": "nearest_rank",
-        "samples": 29500,
-        "p50": 82542,
-        "p95": 201833,
-        "p99": 231833
+        "samples": 32500,
+        "p50": 93500,
+        "p95": 203208,
+        "p99": 340417
       },
       "memory": {
         "measurement": "process_resident_set_after_benchmark",
         "source": "macos_ps_rss_kib",
-        "resident_bytes": 45613056,
+        "resident_bytes": 46170112,
         "status": "available"
       },
       "method": {
@@ -119,11 +119,11 @@
         "bytes": 3526105
       },
       "corpus": {
-        "sha256": "d66d9c5cc1cbf2745842697197a374da10576f2a50394bb51c400bcc64b4387b",
-        "bytes": 39659,
-        "events": 295,
-        "key_events": 295,
-        "total_events": 29500
+        "sha256": "de40e381adf3e69f7f2822da7bbd0e4cbb46b610d1f2d2803df5c9c416c3ba72",
+        "bytes": 59737,
+        "events": 325,
+        "key_events": 325,
+        "total_events": 32500
       },
       "environment": {
         "os": "macos",
@@ -139,22 +139,22 @@
         "rustc_version_status": "unavailable: compiler version was not embedded at build time"
       },
       "initialization": {
-        "lexicon_parse_ns": 74814750,
-        "engine_new_ns": 166,
-        "total_ns": 74814916
+        "lexicon_parse_ns": 70566125,
+        "engine_new_ns": 167,
+        "total_ns": 70566292
       },
       "per_key_latency": {
         "unit": "nanoseconds",
         "percentile_method": "nearest_rank",
-        "samples": 29500,
-        "p50": 87458,
-        "p95": 221250,
-        "p99": 350292
+        "samples": 32500,
+        "p50": 88875,
+        "p95": 186625,
+        "p99": 197333
       },
       "memory": {
         "measurement": "process_resident_set_after_benchmark",
         "source": "macos_ps_rss_kib",
-        "resident_bytes": 45596672,
+        "resident_bytes": 46137344,
         "status": "available"
       },
       "method": {
