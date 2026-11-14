@@ -45,7 +45,7 @@ Host：Linux x86_64／WSL2 6.18.33.2、AMD Ryzen 9 7950X3D、Rust/Cargo 1.92.0�
 
 Build-local prefix 會影響 addon bytes，不宣稱 native binary byte-reproducibility。本機 logs 在 ignored `target/libchewing-evidence/`；small metric reports 在 `docs/benchmarks/`。Native artifacts 不提交或發布。以下舊紀錄所引用同名 benchmark files，應讀 baseline `46da8ac` 的 Git history，不是本輪覆寫後的報告。
 
-**Failed / blocked / not run：** Final local required checks 沒有未修正的失敗。已量得 synthetic p95 超過 5 ms，保留為效能風險，不更改資料或次數掩蓋。Representative corpus、Taiwan 品質、installed native IME、application／display matrix 與 Fcitx index-only safety 仍 open。macOS／Windows SDK build 尚待本輪 CI；任何後續 failure 都須修正。沒有 IME 安裝、註冊、啟用、移除、系統設定變更、tag、release dispatch 或 artifact publication。
+**Failed / blocked / not run：** Final local required checks 沒有未修正的失敗。已量得 synthetic p95 超過 5 ms，保留為效能風險，不更改資料或次數掩蓋。Representative corpus、Taiwan 品質、installed native IME、application／display matrix 與 Fcitx index-only safety 仍 open。`800bc99` 的 Windows native push run [43576769964](https://github.com/narumiruna/bopomofo/actions/runs/43576769964) 三 target passed；common run [43576769912](https://github.com/narumiruna/bopomofo/actions/runs/43576769912) 的 Linux／Windows jobs passed，但 macOS 在任何 steps 執行前 cancelled，annotation 為 `The configuration 'macos-14-arm64-us-default' is not supported`。因此改用 `macos-15` 重跑相同 gates，不以取消代替成功。後續 current-run 結果另記；任何 code failure 均須修正。沒有 IME 安裝、註冊、啟用、移除、系統設定變更、tag、release dispatch 或 artifact publication。
 
 ## CNS11643 rebase — 2026-11-04 UTC
 
