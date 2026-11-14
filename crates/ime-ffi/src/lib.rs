@@ -1,6 +1,6 @@
 //! C ABI for native adapters. See include/bopomofo.h for ownership rules.
-use ime_core::{Engine, Event, KeyEvent, Lexicon};
-use sha2::{Digest, Sha256};
+use ime_core::assets::{AssetBuffer, MAX_ASSET_BYTES, MAX_MANIFEST_BYTES};
+use ime_core::{Assets, Engine, Event, KeyEvent};
 use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::ptr;
@@ -10,7 +10,6 @@ pub const BPM_OK: i32 = 0;
 pub const BPM_INVALID: i32 = 1;
 pub const BPM_DATA: i32 = 2;
 pub const BPM_PANIC: i32 = 3;
-const MAX_LEXICON_BYTES: usize = 32 * 1024 * 1024;
 const MAX_EVENT_BYTES: usize = 4096;
 
 pub struct BpmEngine {
@@ -34,7 +33,39 @@ impl Default for BpmBuffer {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn bpm_abi_version() -> u32 {
-    1
+    2
+}
+
+#[repr(C)]
+pub struct BpmAsset {
+    pub name: *const u8,
+    pub name_len: usize,
+    pub data: *const u8,
+    pub len: usize,
+}
+
+unsafe fn bytes<'a>(data: *const u8, len: usize, max: usize) -> Result<&'a [u8], i32> {
+    if data.is_null() || len > max {
+        return Err(BPM_INVALID);
+    }
+    // SAFETY: the caller guarantees a readable region of len bytes.
+    Ok(unsafe { std::slice::from_raw_parts(data, len) })
+}
+unsafe fn assets(
+    manifest: *const u8,
+    len: usize,
+    data: *const BpmAsset,
+    count: usize,
+) -> Result<Assets, i32> {
+    if count != 1 || data.is_null() {
+        return Err(BPM_INVALID);
+    }
+    // SAFETY: the caller supplies one readable BpmAsset and its input regions.
+    let manifest = unsafe { bytes(manifest, len, MAX_MANIFEST_BYTES) }?;
+    let asset = unsafe { &*data };
+    let name = unsafe { input(asset.name, asset.name_len, 64) }?;
+    let data = unsafe { bytes(asset.data, asset.len, MAX_ASSET_BYTES) }?;
+    Assets::verify(manifest, &[AssetBuffer { name, data }]).map_err(|_| BPM_DATA)
 }
 
 unsafe fn input<'a>(data: *const u8, len: usize, max: usize) -> Result<&'a str, i32> {
@@ -69,56 +100,51 @@ fn boundary(action: impl FnOnce() -> Result<(), i32>) -> i32 {
     }
 }
 
-/// Verify artifact identity against its pinned manifest before opening a context.
+/// Verify a complete v2 asset set before creating a context.
 /// # Safety
-/// Both pointers must remain readable for the specified lengths during this call.
+/// Inputs must remain readable for the specified lengths; asset descriptors must
+/// address count initialized BpmAsset values. Calls do not retain input pointers.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn bpm_lexicon_verify(
-    data: *const u8,
+pub unsafe extern "C" fn bpm_assets_verify(
+    manifest: *const u8,
     len: usize,
-    digest: *const u8,
-    digest_len: usize,
+    data: *const BpmAsset,
+    count: usize,
 ) -> i32 {
     boundary(|| {
-        let text = unsafe { input(data, len, MAX_LEXICON_BYTES) }?;
-        let expected = unsafe { input(digest, digest_len, 64) }?;
-        if expected.len() != 64 || !expected.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err(BPM_DATA);
-        }
-        let actual = format!("{:x}", Sha256::digest(text.as_bytes()));
-        if !expected.eq_ignore_ascii_case(&actual) {
-            return Err(BPM_DATA);
-        }
+        // SAFETY: caller's borrowed input contract.
+        unsafe { assets(manifest, len, data, count) }?;
         Ok(())
     })
 }
 
-/// Create an independent input context from a normalized UTF-8 lexicon.
+/// Create one independent context; copy all required data during this call.
 /// # Safety
-/// Inputs must be valid readable regions; out must point to a writable NULL handle.
-/// Pointers must not overlap. The caller owns the returned handle and frees it once.
+/// Inputs follow bpm_assets_verify's contract. out must address a writable NULL
+/// pointer and must not overlap inputs. The caller frees the returned handle once.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn bpm_engine_new(
-    data: *const u8,
+pub unsafe extern "C" fn bpm_engine_new_v2(
+    manifest: *const u8,
     len: usize,
+    data: *const BpmAsset,
+    count: usize,
     out: *mut *mut BpmEngine,
 ) -> i32 {
     boundary(|| {
         if out.is_null() {
             return Err(BPM_INVALID);
         }
-        // SAFETY: out points to an initialized, writable pointer as required above.
+        // SAFETY: caller supplies an initialized writable pointer.
         if !unsafe { *out }.is_null() {
             return Err(BPM_INVALID);
         }
-        // SAFETY: input validity is the caller's contract.
-        let text = unsafe { input(data, len, MAX_LEXICON_BYTES) }?;
-        let lexicon = Lexicon::parse(text).map_err(|_| BPM_DATA)?;
+        // SAFETY: caller's asset input contract.
+        let data = unsafe { assets(manifest, len, data, count) }?;
         let handle = Box::new(BpmEngine {
-            engine: Engine::new(Arc::new(lexicon)),
+            engine: Engine::new(Arc::new(data)),
             poisoned: Cell::new(false),
         });
-        // SAFETY: out was validated; ownership transfers to the caller.
+        // SAFETY: ownership transfers to the validated output pointer.
         unsafe {
             *out = Box::into_raw(handle);
         }
@@ -226,7 +252,7 @@ pub unsafe extern "C" fn bpm_engine_probe(
 
 /// Free one owned handle; NULL is a no-op.
 /// # Safety
-/// Non-NULL must be returned by bpm_engine_new, not yet freed, with no active calls.
+/// Non-NULL must be returned by bpm_engine_new_v2, not yet freed, with no active calls.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bpm_engine_free(handle: *mut BpmEngine) {
     if !handle.is_null() {
@@ -259,13 +285,57 @@ pub unsafe extern "C" fn bpm_buffer_free(buffer: BpmBuffer) {
 mod tests {
     use super::*;
     const DATA: &str = "# bopomofo-lexicon-v1\nㄅㄚ\t八\t100\n";
-    unsafe fn create() -> *mut BpmEngine {
+    fn parts(source: &str) -> (Vec<u8>, Vec<u8>) {
+        use chewing::dictionary::{DictionaryBuilder, DictionaryUsage, TrieBuilder};
+        use ime_core::assets::*;
+        let mut builder = TrieBuilder::new();
+        builder.set_usage(DictionaryUsage::BuiltIn);
+        for line in source.lines().filter(|l| !l.starts_with('#')) {
+            let f = line.split('\t').collect::<Vec<_>>();
+            let reading = f[0]
+                .split_whitespace()
+                .map(|s| s.parse().unwrap())
+                .collect::<Vec<_>>();
+            builder
+                .insert(&reading, (f[1], f[2].parse::<u32>().unwrap()).into())
+                .unwrap();
+        }
+        let mut data = Vec::new();
+        builder.write(&mut data).unwrap();
+        let manifest = Manifest {
+            format: ASSET_FORMAT.into(),
+            engine: ENGINE_VERSION.into(),
+            builder: ASSET_FORMAT.into(),
+            data_version: "test".into(),
+            source_sha256: checksum(source.as_bytes()),
+            files: vec![FileManifest {
+                name: DICTIONARY_NAME.into(),
+                bytes: data.len(),
+                sha256: checksum(&data),
+            }],
+        };
+        (data, serde_json::to_vec(&manifest).unwrap())
+    }
+    fn descriptor(data: &[u8]) -> BpmAsset {
+        BpmAsset {
+            name: b"dictionary.dat".as_ptr(),
+            name_len: 14,
+            data: data.as_ptr(),
+            len: data.len(),
+        }
+    }
+    unsafe fn from_source(source: &str) -> *mut BpmEngine {
+        let (data, manifest) = parts(source);
+        let asset = descriptor(&data);
         let mut handle = ptr::null_mut();
         assert_eq!(
-            unsafe { bpm_engine_new(DATA.as_ptr(), DATA.len(), &mut handle) },
+            unsafe { bpm_engine_new_v2(manifest.as_ptr(), manifest.len(), &asset, 1, &mut handle) },
             BPM_OK
         );
         handle
+    }
+    unsafe fn create() -> *mut BpmEngine {
+        unsafe { from_source(DATA) }
     }
     unsafe fn snapshot(handle: *mut BpmEngine) -> String {
         let mut buffer = BpmBuffer::default();
@@ -322,7 +392,7 @@ mod tests {
             assert_eq!(bpm_engine_snapshot(ptr::null(), &mut out), BPM_INVALID);
             let mut occupied = handle;
             assert_eq!(
-                bpm_engine_new(DATA.as_ptr(), DATA.len(), &mut occupied),
+                bpm_engine_new_v2(ptr::null(), 0, ptr::null(), 0, &mut occupied),
                 BPM_INVALID
             );
             bpm_engine_free(handle);
@@ -332,25 +402,34 @@ mod tests {
     }
     #[test]
     fn artifact_checksum_is_checked_before_loading() {
-        let actual = format!("{:x}", Sha256::digest(DATA.as_bytes()));
+        let (mut data, manifest) = parts(DATA);
+        let asset = descriptor(&data);
         unsafe {
+            assert_eq!(bpm_abi_version(), 2);
             assert_eq!(
-                bpm_lexicon_verify(DATA.as_ptr(), DATA.len(), actual.as_ptr(), actual.len()),
+                bpm_assets_verify(manifest.as_ptr(), manifest.len(), &asset, 1),
                 BPM_OK
             );
-            let wrong = "0".repeat(64);
             assert_eq!(
-                bpm_lexicon_verify(DATA.as_ptr(), DATA.len(), wrong.as_ptr(), wrong.len()),
-                BPM_DATA
-            );
-            assert_eq!(
-                bpm_lexicon_verify(DATA.as_ptr(), DATA.len(), wrong.as_ptr(), 63),
-                BPM_DATA
-            );
-            assert_eq!(
-                bpm_lexicon_verify(ptr::null(), 0, wrong.as_ptr(), 64),
+                bpm_assets_verify(manifest.as_ptr(), manifest.len(), &asset, 0),
                 BPM_INVALID
             );
+            assert_eq!(
+                bpm_assets_verify(manifest.as_ptr(), manifest.len(), ptr::null(), 1),
+                BPM_INVALID
+            );
+            data[0] ^= 1;
+            let asset = descriptor(&data);
+            assert_eq!(
+                bpm_assets_verify(manifest.as_ptr(), manifest.len(), &asset, 1),
+                BPM_DATA
+            );
+            let mut handle = ptr::null_mut();
+            assert_eq!(
+                bpm_engine_new_v2(manifest.as_ptr(), manifest.len(), &asset, 1, &mut handle),
+                BPM_DATA
+            );
+            assert!(handle.is_null());
         }
     }
 
@@ -361,12 +440,7 @@ mod tests {
     #[test]
     fn utf8_commit_is_transient_and_destination_errors_preserve_state() {
         unsafe {
-            let data = "# bopomofo-lexicon-v1\nㄅㄚ\t𠀀👩‍💻e\u{301}\t100\n";
-            let mut handle = ptr::null_mut();
-            assert_eq!(
-                bpm_engine_new(data.as_ptr(), data.len(), &mut handle),
-                BPM_OK
-            );
+            let handle = from_source("# bopomofo-lexicon-v1\nㄅㄚ\t𠀀\t100\n");
             let call = |key: &str| {
                 let event = serde_json::json!({"type":"key", "key":key}).to_string();
                 let mut out = BpmBuffer::default();
@@ -382,8 +456,8 @@ mod tests {
             call("1");
             call("8");
             let out = call("space");
-            assert_eq!(out["snapshot"]["preedit"], "𠀀👩‍💻e\u{301}");
-            assert_eq!(out["snapshot"]["cursor"], "𠀀👩‍💻e\u{301}".len());
+            assert_eq!(out["snapshot"]["preedit"], "𠀀");
+            assert_eq!(out["snapshot"]["cursor"], 4);
             let before = snapshot(handle);
             let mut occupied = BpmBuffer {
                 data: b"occupied".as_ptr().cast_mut(),
@@ -396,7 +470,7 @@ mod tests {
             );
             assert_eq!(snapshot(handle), before);
             let committed = call("enter");
-            assert_eq!(committed["commit"], "𠀀👩‍💻e\u{301}");
+            assert_eq!(committed["commit"], "𠀀");
             assert!(call("enter")["commit"].is_null());
             let display: serde_json::Value = serde_json::from_str(&snapshot(handle)).unwrap();
             assert!(display.get("commit").is_none());

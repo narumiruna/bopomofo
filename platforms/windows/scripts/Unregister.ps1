@@ -18,4 +18,4 @@ if (-not [String]::Equals($Context.ExistingPath, $Context.Path, [StringCompariso
 & $Context.Regsvr32 '/s' '/u' $Context.Path
 if ($LASTEXITCODE -ne 0) { throw "TSF removal failed with exit code $LASTEXITCODE. Inspect the fixed service keys before retrying." }
 Write-Output "Unregistered TSF service: $($Context.Path)"
-Write-Output 'No DLL, lexicon file, or other input method was removed.'
+Write-Output 'No DLL, asset file, or other input method was removed.'

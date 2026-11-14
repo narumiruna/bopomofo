@@ -1,5 +1,5 @@
 use crate::{Error, Result, files, write_json};
-use ime_core::{Engine, Event, Lexicon, Output};
+use ime_core::{Assets, Engine, Event, Output};
 use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 use std::io::Write;
@@ -93,7 +93,7 @@ fn subset_matches(expected: &Value, actual: &Value) -> bool {
     }
 }
 
-pub(crate) fn run(lexicon: Arc<Lexicon>, case: &Case, output: &mut impl Write) -> Result<()> {
+pub(crate) fn run(lexicon: Arc<Assets>, case: &Case, output: &mut impl Write) -> Result<()> {
     let mut engine = Engine::new(lexicon);
     for (index, record) in case.records.iter().enumerate() {
         let result = engine.handle(record.event.clone());

@@ -160,7 +160,7 @@ bool dispatch(const std::shared_ptr<Context> &state, fcitx::InputContext *ic,
 ContextProperty::ContextProperty() : context(std::make_shared<Context>()) {}
 
 Addon::Addon(fcitx::InputContextManager &manager, const std::string &lexiconPath, const std::string &checksumPath)
-    : lexicon_(loadVerifiedLexicon(lexiconPath, checksumPath)),
+    : lexicon_(loadVerifiedAssets(lexiconPath, checksumPath)),
       factory_([](fcitx::InputContext &) { return new ContextProperty; }) {
     // Reject an unavailable ABI or invalid versioned lexicon at addon creation,
     // not on the first key. Source bytes remain immutable thereafter.

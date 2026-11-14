@@ -2,10 +2,27 @@ use std::path::Path;
 use std::process::Command;
 
 fn assert_replays_identically(lexicon: &Path, case: &Path) {
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let assets = std::env::temp_dir().join(format!(
+        "bopomofo-replay-assets-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    let built = Command::new(env!("CARGO_BIN_EXE_ime-cli"))
+        .arg("build-assets")
+        .arg(lexicon)
+        .arg(&assets)
+        .output()
+        .unwrap();
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
     let run = || {
         Command::new(env!("CARGO_BIN_EXE_ime-cli"))
             .arg("replay")
-            .arg(lexicon)
+            .arg(&assets)
             .arg(case)
             .output()
             .unwrap()
@@ -27,6 +44,7 @@ fn assert_replays_identically(lexicon: &Path, case: &Path) {
         "case {} must be deterministic",
         case.display()
     );
+    std::fs::remove_dir_all(assets).unwrap();
 }
 
 #[test]

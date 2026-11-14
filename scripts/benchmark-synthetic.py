@@ -4,6 +4,7 @@
 from collections import Counter
 import hashlib
 import json
+import shutil
 from pathlib import Path
 import subprocess
 
@@ -14,7 +15,7 @@ PROFILES = (10_000, 100_000, 250_000)
 REPETITIONS = 100
 HEADER = "# bopomofo-lexicon-v1\n"
 MAX_BYTES = 32 * 1024 * 1024
-SEED_ENTRIES = 256 + 15
+SEED_ENTRIES = 256 + 15 + 15
 SYLLABLES = (
     "ㄧ", "ㄨ", "ㄩ", "ㄚ", "ㄛ", "ㄜ", "ㄞ", "ㄟ",
     "ㄠ", "ㄡ", "ㄢ", "ㄣ", "ㄤ", "ㄥ", "ㄦ", "ㄇㄚ",
@@ -37,18 +38,31 @@ def filler_reading(group):
     return ("ㄨ", "ㄩ", *suffix)
 
 
+def alternative(index):
+    """One Unicode scalar per syllable, as required by the upstream editor."""
+    return "一" if index == 0 else chr(0x3400 + index)
+
+
+def filler_text(index):
+    # Reading groups distinguish repeated text after the 16-bit text counter wraps.
+    return "合" + "".join(chr(0x4E00 + ((index >> shift) & 15)) for shift in (12, 8, 4, 0))
+
+
 def lexicon_bytes(entries):
     if not SEED_ENTRIES <= entries <= PROFILES[-1]:
         raise ValueError("synthetic entry count out of range")
-    records = ["ㄧ\t詞01\t1000000\n"]
-    records.extend(f"ㄧ\t候選{index:03d}\t1\n" for index in range(1, 256))
+    records = ["ㄧ\t一\t1000000\n"]
+    records.extend(f"ㄧ\t{alternative(index)}\t{256 - index}\n" for index in range(1, 256))
     records.extend(
-        f"{' '.join(['ㄧ'] * length)}\t詞{length:02d}\t1000000\n"
+        f"{syllable}\t{chr(0x5000 + index)}\t100\n"
+        for index, syllable in enumerate(SYLLABLES[1:], 1)
+    )
+    records.extend(
+        f"{' '.join(['ㄧ'] * length)}\t{'一' * length}\t1000000\n"
         for length in range(2, 17)
     )
     for index in range(entries - SEED_ENTRIES):
-        reading = " ".join(filler_reading(index // 256))
-        records.append(f"{reading}\t合成{index:06d}\t1\n")
+        records.append(f"{' '.join(filler_reading(index // 256))}\t{filler_text(index)}\t{256 - index % 256}\n")
     data = (HEADER + "".join(records)).encode("utf-8")
     if len(data) > MAX_BYTES:
         raise ValueError("synthetic lexicon exceeds CLI byte limit")
@@ -56,13 +70,12 @@ def lexicon_bytes(entries):
 
 
 def decoded_prefix(count):
-    """Equal primary scores prefer fewest segments, then longest left span."""
-    full, remainder = divmod(count, 16)
-    return "詞16" * full + (f"詞{remainder:02d}" if remainder else "")
+    """Every supported segmentation has the same independently specified text."""
+    return "一" * count
 
 
 def replay_bytes(entries):
-    """Expectations follow input-spec and decoder rules, not engine output."""
+    """Expectations follow the input contract and source entries, not engine output."""
     if not SEED_ENTRIES <= entries <= PROFILES[-1]:
         raise ValueError("synthetic entry count out of range")
     records = []
@@ -82,33 +95,25 @@ def replay_bytes(entries):
     compose(64)
     text64 = decoded_prefix(64)
     key("u", {"preedit": text64}, status="limit_reached")
-    candidates = [{"text": "詞01", "start": 63, "end": 64}]
-    candidates.extend(
-        {"text": f"候選{index:03d}", "start": 63, "end": 64}
-        for index in range(1, 256)
-    )
+    candidates = [
+        {"text": alternative(index), "start": 63, "end": 64}
+        for index in range(256)
+    ]
     key("down", {"preedit": text64, "selecting": True, "candidates": candidates})
     key("page_down", {"page": 1, "candidate_index": 9})
-    selected = decoded_prefix(63) + "候選010"
-    key("2", {
-        "preedit": selected,
-        "selecting": False,
-        "cursor": len(selected.encode("utf-8")),
-    })
+    selected = decoded_prefix(63) + alternative(10)
+    key("2", {"preedit": selected, "selecting": False, "cursor": len(selected.encode())})
     key("down", {"preedit": selected, "selecting": True, "candidates": candidates})
     for page in range(1, 29):
         key("page_down", {"page": page, "candidate_index": page * 9})
-    selected_tail = decoded_prefix(63) + "候選255"
-    key("4", {
-        "preedit": selected_tail,
-        "selecting": False,
-        "cursor": len(selected_tail.encode("utf-8")),
-    })
+    selected_tail = decoded_prefix(63) + alternative(255)
+    key("4", {"preedit": selected_tail, "selecting": False, "cursor": len(selected_tail.encode())})
     key("backspace", {"preedit": decoded_prefix(63)})
     key("home", {"cursor": 0})
     key("delete", {"preedit": decoded_prefix(62), "cursor": 0})
     key("u")
-    key("space", {"preedit": decoded_prefix(63), "cursor": 0})
+    # An inserted one-syllable word can be part of an upstream multi-syllable interval.
+    key("space", {"preedit": decoded_prefix(63)})
     key("end")
     key("u")
     key("space", {"preedit": text64})
@@ -117,18 +122,17 @@ def replay_bytes(entries):
     key("enter", {"preedit": "", "candidates": []}, commit=text64)
     key("enter", {"preedit": ""}, consumed=False)
 
-    # Exercise the first and last populated common-prefix index groups as well.
     remaining = entries - SEED_ENTRIES
     if remaining:
         for group in dict.fromkeys((0, (remaining - 1) // 256)):
             for syllable in filler_reading(group):
                 for character in KEYS[SYLLABLES.index(syllable)]:
                     key(character)
-                # ㄨ/ㄩ and other filler singletons are intentionally unknown.
-                status = None if syllable == "ㄧ" else "unknown_reading"
-                key("space", status=status)
-            text = f"合成{group * 256:06d}"
-            key("enter", {"preedit": ""}, commit=text)
+                key("space")
+            key("home")
+            key("down", {"selecting": True})
+            key("1", {"preedit": filler_text(group * 256), "selecting": False})
+            key("enter", {"preedit": ""}, commit=filler_text(group * 256))
             key("enter", consumed=False)
 
     if len(records) * REPETITIONS > 1_000_000:
@@ -153,7 +157,7 @@ def source_identity():
         name for name in names
         if name in (".gitattributes", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml")
         or name.startswith((
-            "crates/", "platforms/", "fixtures/", ".github/", "scripts/", "data/cns11643/",
+            "crates/", "platforms/", "fixtures/", ".github/", "scripts/", "data/cns11643/", "data/libchewing/",
         ))
     ]
     checksum = hashlib.sha256()
@@ -163,7 +167,7 @@ def source_identity():
         "base_commit": run("git", "rev-parse", "HEAD").decode().strip(),
         "snapshot_sha256": checksum.hexdigest(),
         "paths": len(names),
-        "method": "sorted path + NUL + bytes + NUL; source/build/fixture/scripts/CNS inputs only",
+        "method": "sorted path + NUL + bytes + NUL; source/build/fixture/scripts/CNS/libchewing inputs only",
     }
 
 
@@ -182,6 +186,7 @@ def main():
         "cargo_version": run("cargo", "--version").decode().strip(),
     }
     for entries in PROFILES:
+        print(f"checking synthetic entries={entries}", flush=True)
         directory = OUTPUT / str(entries)
         directory.mkdir(exist_ok=True)
         lexicon = directory / "synthetic.tsv"
@@ -199,23 +204,30 @@ def main():
         if canonical.read_bytes() != second.read_bytes():
             raise ValueError("canonical lexicon rebuild differs")
         run(str(release), "validate-lexicon", str(canonical))
+        assets, repeated_assets = directory / "assets", directory / "assets-repeat"
+        for destination in (assets, repeated_assets):
+            if destination.exists():
+                shutil.rmtree(destination)
+        compiled = json.loads(run(str(release), "build-assets", str(canonical), str(assets)))
+        run(str(release), "build-assets", str(canonical), str(repeated_assets))
+        for name in ("dictionary.dat", "assets.json"):
+            if (assets / name).read_bytes() != (repeated_assets / name).read_bytes():
+                raise ValueError("asset rebuild differs")
         outputs = [
-            run(str(binary), "replay", str(canonical), str(corpus))
+            run(str(binary), "replay", str(assets), str(corpus))
             for binary in (debug, release, release)
         ]
         if outputs[0] != outputs[1] or outputs[1] != outputs[2]:
             raise ValueError("debug/release/repeated replay differs")
-        reports = [
-            json.loads(run(
-                str(release), "benchmark", str(canonical), str(corpus), str(REPETITIONS)
-            ))
-            for _ in range(2)
-        ]
+        reports = []
+        for attempt in range(1, 3):
+            print(f"benchmark entries={entries} run={attempt}/2 repetitions={REPETITIONS}", flush=True)
+            reports.append(json.loads(run(str(release), "benchmark", str(assets), str(corpus), str(REPETITIONS))))
         for report in reports:
             if (
                 report["scope"] != "fixture_only"
                 or report["lexicon"]["entries"] != entries
-                or report["lexicon"]["sha256"] != built["sha256"]
+                or report["lexicon"]["sha256"] != compiled["sha256"]
                 or report["corpus"]["sha256"] != digest(replay)
                 or report["corpus"]["total_events"] > 1_000_000
             ):
@@ -235,11 +247,13 @@ def main():
             **provenance,
             "generated": validation,
             "canonical": built,
+            "assets": compiled,
             "distribution": distribution,
             "replay_output_sha256": digest(outputs[0]),
             "checks": {
                 "deterministic_generation": True,
                 "canonical_rebuild_identical": True,
+                "asset_rebuild_identical": True,
                 "debug_release_replay_identical": True,
                 "repeated_replay_identical": True,
             },

@@ -95,7 +95,7 @@ final class BopomofoInputController: IMKInputController {
 
     private func createEngine() {
         do {
-            engine = try CoreEngine(lexicon: LexiconResource.result.get())
+            engine = try CoreEngine(assets: AssetResource.result.get())
         } catch { reportError(error) }
     }
 

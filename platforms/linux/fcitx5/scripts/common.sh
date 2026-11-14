@@ -26,8 +26,14 @@ paths=(
     lib/fcitx5/libbopomofo-dev.so
     share/fcitx5/addon/bopomofo-dev.conf
     share/fcitx5/inputmethod/bopomofo-dev.conf
-    share/fcitx5/bopomofo-dev/lexicon.tsv
-    share/fcitx5/bopomofo-dev/lexicon.sha256
+    share/fcitx5/bopomofo-dev/dictionary.dat
+    share/fcitx5/bopomofo-dev/assets.json
+    share/fcitx5/bopomofo-dev/Project-LICENSE.txt
+    share/fcitx5/bopomofo-dev/Engine-LICENSE.txt
+    share/fcitx5/bopomofo-dev/Engine-AUTHORS.txt
+    share/fcitx5/bopomofo-dev/Engine-NOTICE.txt
+    share/fcitx5/bopomofo-dev/Data-LICENSE.txt
+    share/fcitx5/bopomofo-dev/Data-NOTICE.txt
 )
 for path in "${paths[@]}"; do check_path "$prefix/$path"; done
 check_path "$prefix/.bopomofo-dev-owned"

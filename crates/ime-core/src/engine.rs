@@ -1,122 +1,348 @@
-use crate::decoder::{self, Lock};
-use crate::lexicon::MAX_PHRASE_SYLLABLES;
-use crate::parser::{PhoneticBuffer, Syllable};
+//! Context-local libchewing integration. No input history, file I/O or learning.
+use crate::assets::{MAX_CANDIDATES, ReadOnlyDictionary};
 use crate::{
-    Candidate, Event, InputMode, KeyEvent, Lexicon, MAX_SYLLABLES, Output, PAGE_SIZE, Snapshot,
+    Assets, Candidate, Event, InputMode, KeyEvent, MAX_SYLLABLES, Output, PAGE_SIZE, Snapshot,
     Status,
 };
+use chewing::conversion::ChewingEngine;
+use chewing::dictionary::{Dictionary, Layered, LookupStrategy};
+use chewing::editor::zhuyin_layout::{KeyBehavior, Standard, SyllableEditor};
+use chewing::editor::{
+    AbbrevTable, BasicEditor, Editor, EditorKeyBehavior, LaxUserFreqEstimate, SymbolSelector,
+};
+use chewing::input::{
+    KeyboardEvent,
+    keymap::{QWERTY_MAP, map_ascii},
+    keysym::*,
+};
+use chewing::zhuyin::Bopomofo;
 use std::{collections::BTreeMap, sync::Arc};
 
-const MAX_CANDIDATES: usize = crate::lexicon::MAX_CANDIDATES_PER_READING;
+#[derive(Clone, Default)]
+struct Modifiers {
+    shift_pending: bool,
+    shift_used: bool,
+    held: BTreeMap<String, usize>,
+}
+#[derive(PartialEq, Eq)]
+enum Route {
+    Pass,
+    Toggle,
+    Input,
+}
+impl Modifiers {
+    fn route(
+        &mut self,
+        key: &KeyEvent,
+        active: bool,
+        mode: InputMode,
+        occupied: bool,
+        selecting: bool,
+    ) -> Route {
+        if !active {
+            return Route::Pass;
+        }
+        if key.key == "shift" {
+            if key.release {
+                if key.shift {
+                    return Route::Pass;
+                }
+                let toggle = self.shift_pending
+                    && !self.shift_used
+                    && self.held.is_empty()
+                    && !key.ctrl
+                    && !key.alt
+                    && !key.meta;
+                self.shift_pending = false;
+                self.shift_used = false;
+                return if toggle { Route::Toggle } else { Route::Pass };
+            }
+            if !key.repeat && !self.shift_pending {
+                self.shift_pending = true;
+                self.shift_used = key.ctrl || key.alt || key.meta || !self.held.is_empty();
+            }
+            return Route::Pass;
+        }
+        if self.shift_pending {
+            self.shift_used = true;
+        }
+        if key.key != "caps_lock" && !key.key.is_empty() && key.key.len() <= 32 {
+            if key.release {
+                if let Some(n) = self.held.get_mut(&key.key) {
+                    *n -= 1;
+                    if *n == 0 {
+                        self.held.remove(&key.key);
+                    }
+                }
+            } else if self.held.len() < 128 || self.held.contains_key(&key.key) {
+                let n = self.held.entry(key.key.clone()).or_default();
+                *n = if key.repeat {
+                    (*n).max(1)
+                } else {
+                    n.saturating_add(1)
+                };
+            }
+        }
+        if key.release {
+            return Route::Pass;
+        }
+        if key.key == "caps_lock" {
+            return if key.repeat {
+                Route::Pass
+            } else {
+                Route::Toggle
+            };
+        }
+        if key.ctrl || key.alt || key.meta || mode == InputMode::Latin {
+            return Route::Pass;
+        }
+        if selecting || phonetic(&key.key) || (occupied && special(&key.key)) {
+            Route::Input
+        } else {
+            Route::Pass
+        }
+    }
+}
 
-/// One context's mutable composition. The immutable lexicon may be shared.
-#[derive(Clone)]
+fn special(key: &str) -> bool {
+    matches!(
+        key,
+        "space"
+            | "enter"
+            | "escape"
+            | "backspace"
+            | "delete"
+            | "left"
+            | "right"
+            | "up"
+            | "down"
+            | "home"
+            | "end"
+            | "page_up"
+            | "page_down"
+            | "tab"
+    )
+}
+fn native(key: &str) -> Option<KeyboardEvent> {
+    let sym = match key {
+        "space" => return Some(map_ascii(&QWERTY_MAP, b' ')),
+        "enter" => SYM_RETURN,
+        "escape" => SYM_ESC,
+        "backspace" => SYM_BACKSPACE,
+        "delete" => SYM_DELETE,
+        "left" => SYM_LEFT,
+        "right" => SYM_RIGHT,
+        "up" => SYM_UP,
+        "down" => SYM_DOWN,
+        "home" => SYM_HOME,
+        "end" => SYM_END,
+        "page_up" => SYM_PAGEUP,
+        "page_down" => SYM_PAGEDOWN,
+        "tab" => SYM_TAB,
+        value if value.len() == 1 && value.is_ascii() => {
+            let event = map_ascii(&QWERTY_MAP, value.as_bytes()[0]);
+            return (event.state == 0).then_some(event);
+        }
+        _ => return None,
+    };
+    Some(KeyboardEvent::builder().ksym(sym).build())
+}
+fn phonetic(key: &str) -> bool {
+    // Ask the upstream layout, rather than keeping a second Dachen table.
+    native(key)
+        .is_some_and(|event| !matches!(Standard::new().key_press(event), KeyBehavior::KeyError))
+}
+fn tone(key: &str) -> Option<Bopomofo> {
+    match key {
+        "space" => Some(Bopomofo::TONE1),
+        "6" => Some(Bopomofo::TONE2),
+        "3" => Some(Bopomofo::TONE3),
+        "4" => Some(Bopomofo::TONE4),
+        "7" => Some(Bopomofo::TONE5),
+        _ => None,
+    }
+}
+
 pub struct Engine {
-    lexicon: Arc<Lexicon>,
-    syllables: Vec<Syllable>,
-    pending: PhoneticBuffer,
-    cursor: usize,
-    locks: Vec<Lock>,
-    text: String,
-    offsets: Vec<usize>,
-    candidates: Vec<Candidate>,
-    selecting: bool,
+    assets: Arc<Assets>,
+    editor: Editor,
+    modifiers: Modifiers,
     candidate_index: usize,
     generation: u64,
     mode: InputMode,
     active: bool,
-    shift_pending: bool,
-    shift_used: bool,
-    held_keys: BTreeMap<String, usize>,
 }
-
 impl Engine {
-    pub fn new(lexicon: Arc<Lexicon>) -> Self {
+    pub fn new(assets: Arc<Assets>) -> Self {
+        let dict = Layered::new(vec![Box::new(ReadOnlyDictionary(Arc::clone(
+            &assets.dictionary,
+        )))]);
+        let mut editor = Editor::new(
+            Box::new(ChewingEngine::new()),
+            dict,
+            LaxUserFreqEstimate::new(0),
+            AbbrevTable::new(),
+            SymbolSelector::new(b"".as_slice()).expect("empty symbol table"),
+        );
+        editor.set_editor_options(|o| {
+            o.disable_auto_learn_phrase = true;
+            o.auto_commit_threshold = usize::MAX;
+            o.candidates_per_page = PAGE_SIZE;
+            o.esc_clear_all_buffer = true;
+            o.enable_fullwidth_toggle_key = false;
+            o.sort_candidates_by_frequency = true;
+        });
         Self {
-            lexicon,
-            syllables: vec![],
-            pending: PhoneticBuffer::default(),
-            cursor: 0,
-            locks: vec![],
-            text: String::new(),
-            offsets: vec![0],
-            candidates: vec![],
-            selecting: false,
+            assets,
+            editor,
+            modifiers: Modifiers::default(),
             candidate_index: 0,
             generation: 0,
             mode: InputMode::Chinese,
             active: true,
-            shift_pending: false,
-            shift_used: false,
-            held_keys: BTreeMap::new(),
         }
     }
-
     pub fn snapshot(&self) -> Snapshot {
-        let mut preedit = self.text.clone();
-        let position = self.offsets[self.cursor];
-        let pending = self.pending.text();
-        preedit.insert_str(position, &pending);
+        // Reuse one upstream conversion for text and offsets; do not convert twice.
+        let intervals: Vec<_> = self.editor.intervals().collect();
+        let mut preedit: String = intervals.iter().map(|interval| &*interval.text).collect();
+        let mut cursor = preedit.len();
+        let position = self.editor.cursor();
+        let mut bytes = 0;
+        for interval in intervals {
+            if position < interval.end {
+                cursor = bytes
+                    + interval
+                        .text
+                        .chars()
+                        .take(position.saturating_sub(interval.start))
+                        .map(char::len_utf8)
+                        .sum::<usize>();
+                break;
+            }
+            bytes += interval.text.len();
+        }
+        let pending = self.editor.syllable_buffer_display();
+        preedit.insert_str(cursor, &pending);
+        cursor += pending.len();
+        let selecting = self.editor.is_selecting();
+        let candidates = if selecting {
+            let start = position;
+            self.editor
+                .all_candidates()
+                .unwrap_or_default()
+                .into_iter()
+                .take(MAX_CANDIDATES)
+                .map(|text| {
+                    let end = start + text.chars().count();
+                    Candidate { text, start, end }
+                })
+                .collect()
+        } else {
+            vec![]
+        };
         Snapshot {
             preedit,
-            cursor: position + pending.len(),
-            candidates: self.candidates.clone(),
+            cursor,
+            candidates,
             page: self.candidate_index / PAGE_SIZE,
             candidate_index: self.candidate_index,
-            selecting: self.selecting,
+            selecting,
             generation: self.generation,
             mode: self.mode,
             active: self.active,
         }
     }
-
-    /// Simulate on a private value; shared lexicon data is immutable.
+    /// Only modifier bookkeeping is copied. No Editor call or history replay occurs.
     pub fn probe(&self, key: &KeyEvent) -> bool {
-        self.clone().handle(Event::Key(key.clone())).consumed
+        self.modifiers.clone().route(
+            key,
+            self.active,
+            self.mode,
+            self.occupied(),
+            self.editor.is_selecting(),
+        ) != Route::Pass
     }
-
+    fn occupied(&self) -> bool {
+        !self.editor.is_empty() || self.editor.entering_syllable()
+    }
+    fn cancel(&mut self) {
+        self.editor.clear();
+        self.editor.cancel_entering_syllable();
+        self.editor.ack();
+        self.candidate_index = 0;
+        self.modifiers.shift_pending = false;
+        self.modifiers.shift_used = false;
+    }
+    fn select(&mut self, index: usize) -> Result<(), ()> {
+        self.editor.select(index).map_err(|_| ())?;
+        self.candidate_index = 0;
+        Ok(())
+    }
     pub fn handle(&mut self, event: Event) -> Output {
-        let mut commit = None;
         let mut status = None;
         let consumed = match event {
             Event::Activate => {
                 self.active = true;
-                self.bump();
                 true
             }
             Event::Deactivate => {
-                self.held_keys.clear();
                 self.cancel();
+                self.modifiers = Modifiers::default();
                 self.active = false;
-                self.bump();
                 true
             }
-            Event::FocusLost | Event::Reset => {
-                self.held_keys.clear();
+            Event::Reset | Event::FocusLost => {
                 self.cancel();
-                self.bump();
+                self.modifiers = Modifiers::default();
                 true
             }
             Event::Select { generation, index } => {
                 if generation != self.generation
-                    || !self.selecting
-                    || index >= self.candidates.len()
+                    || !self.editor.is_selecting()
+                    || index >= self.snapshot().candidates.len()
                 {
                     status = Some(Status::StaleSelection);
-                } else {
-                    self.select(index);
-                    self.bump();
+                } else if self.select(index).is_err() {
+                    status = Some(Status::InternalError);
                 }
                 true
             }
-            Event::Key(key) => self.key(key, &mut commit, &mut status),
+            Event::Key(key) => {
+                let occupied = self.occupied();
+                let selecting = self.editor.is_selecting();
+                match self
+                    .modifiers
+                    .route(&key, self.active, self.mode, occupied, selecting)
+                {
+                    Route::Pass => false,
+                    Route::Toggle => {
+                        self.cancel();
+                        self.mode = match self.mode {
+                            InputMode::Chinese => InputMode::Latin,
+                            InputMode::Latin => InputMode::Chinese,
+                        };
+                        true
+                    }
+                    Route::Input => {
+                        self.input(&key.key, &mut status);
+                        true
+                    }
+                }
+            }
         };
-        if consumed && self.rebuild().is_err() {
-            // Never publish a partial commit after an internal state error.
+        let mut commit = if self.editor.display_commit().is_empty() {
+            None
+        } else {
+            Some(self.editor.display_commit().to_owned())
+        };
+        self.editor.ack();
+        if status == Some(Status::InternalError) {
             self.cancel();
-            self.bump();
             commit = None;
-            status = Some(Status::InternalError);
+        }
+        if consumed && status != Some(Status::StaleSelection) {
+            self.generation = self.generation.wrapping_add(1);
         }
         Output {
             consumed,
@@ -125,315 +351,95 @@ impl Engine {
             status,
         }
     }
-
-    fn key(
-        &mut self,
-        key: KeyEvent,
-        commit: &mut Option<String>,
-        status: &mut Option<Status>,
-    ) -> bool {
-        if !self.active {
-            return false;
-        }
-        if key.key == "shift" {
-            if key.release {
-                // A second physical Shift can still be held after this release.
-                if key.shift {
-                    return false;
-                }
-                let toggle = self.shift_pending
-                    && !self.shift_used
-                    && self.held_keys.is_empty()
-                    && !key.ctrl
-                    && !key.alt
-                    && !key.meta;
-                self.shift_pending = false;
-                self.shift_used = false;
-                if toggle {
-                    self.toggle_mode();
-                    return true;
-                }
-            } else if !key.repeat && !self.shift_pending {
-                self.shift_pending = true;
-                self.shift_used = key.ctrl || key.alt || key.meta || !self.held_keys.is_empty();
-            }
-            return false;
-        }
-        if self.shift_pending {
-            self.shift_used = true;
-        }
-        // Native adapters observe releases even when the event passes through.
-        // Bounds prevent arbitrary public KeyEvents from growing this set.
-        if key.key != "caps_lock" && !key.key.is_empty() && key.key.len() <= 32 {
-            if key.release {
-                if let Some(count) = self.held_keys.get_mut(&key.key) {
-                    *count -= 1;
-                    if *count == 0 {
-                        self.held_keys.remove(&key.key);
-                    }
-                }
-            } else if self.held_keys.len() < 128 || self.held_keys.contains_key(&key.key) {
-                // Return and keypad Enter can share one logical name.
-                // They remain held until both native releases arrive.
-                let count = self.held_keys.entry(key.key.clone()).or_default();
-                if key.repeat {
-                    *count = (*count).max(1);
-                } else {
-                    *count = count.saturating_add(1);
-                }
-            }
-        }
-        if key.release {
-            return false;
-        }
-        if key.ctrl || key.alt || key.meta {
-            return false;
-        }
-        if key.key == "caps_lock" {
-            if !key.repeat {
-                self.toggle_mode();
-                return true;
-            }
-            return false;
-        }
-        if self.mode == InputMode::Latin {
-            return false;
-        }
-        if self.selecting {
-            return self.selection_key(&key.key);
-        }
-
-        let occupied = !self.syllables.is_empty() || !self.pending.is_empty();
-        match key.key.as_str() {
-            "escape" if occupied => self.cancel(),
-            "backspace" if occupied => {
-                if !self.pending.backspace() && self.cursor > 0 {
-                    self.cursor -= 1;
-                    self.remove(self.cursor);
-                }
-            }
-            "delete" if occupied => {
-                if self.pending.is_empty() && self.cursor < self.syllables.len() {
-                    self.remove(self.cursor);
-                }
-            }
-            "left" | "right" | "home" | "end" if occupied => {
-                if self.pending.is_empty() {
-                    self.cursor = match key.key.as_str() {
-                        "left" => self.cursor.saturating_sub(1),
-                        "right" => (self.cursor + 1).min(self.syllables.len()),
-                        "home" => 0,
-                        _ => self.syllables.len(),
-                    };
-                }
-            }
-            "down" if !self.syllables.is_empty() && self.pending.is_empty() => {
-                if !self.candidates.is_empty() {
-                    self.selecting = true;
+    fn input(&mut self, key: &str, status: &mut Option<Status>) {
+        if self.editor.is_selecting() {
+            let count = self.snapshot().candidates.len();
+            match key {
+                "escape" => {
+                    let _ = self.editor.cancel_selecting();
                     self.candidate_index = 0;
                 }
-            }
-            "enter" if occupied => {
-                if !self.pending.is_empty() {
-                    *status = Some(Status::InvalidSyllable);
-                } else {
-                    *commit = Some(self.text.clone());
-                    self.cancel();
-                }
-            }
-            "space" if self.pending.is_empty() && !self.syllables.is_empty() => {
-                *commit = Some(self.text.clone());
-                self.cancel();
-            }
-            "space" | "6" | "3" | "4" | "7" if occupied => {
-                let tone = match key.key.as_str() {
-                    "6" => 2,
-                    "3" => 3,
-                    "4" => 4,
-                    "7" => 5,
-                    _ => 1,
-                };
-                match self.pending.finish(tone) {
-                    Ok(syllable) if self.syllables.len() < MAX_SYLLABLES => {
-                        if self
-                            .lexicon
-                            .lookup(std::slice::from_ref(&syllable))
-                            .is_empty()
-                        {
-                            *status = Some(Status::UnknownReading);
-                        }
-                        self.insert(syllable);
-                        self.pending.clear();
+                "enter" | "space" => {
+                    if self.select(self.candidate_index).is_err() {
+                        *status = Some(Status::InternalError);
                     }
-                    Ok(_) => *status = Some(Status::LimitReached),
-                    Err(_) => *status = Some(Status::InvalidSyllable),
                 }
-            }
-            _ => {
-                let mut chars = key.key.chars();
-                let Some(character) = chars.next().filter(|_| chars.next().is_none()) else {
-                    return false;
-                };
-                // Validate on a copy so errors and limits preserve the old buffer.
-                let mut next = self.pending.clone();
-                match next.push_key(character) {
-                    Ok(false) => return false,
-                    Ok(true)
-                        if self.pending.is_empty() && self.syllables.len() >= MAX_SYLLABLES =>
-                    {
-                        *status = Some(Status::LimitReached)
+                "up" | "left" => self.candidate_index = self.candidate_index.saturating_sub(1),
+                "down" | "right" => {
+                    self.candidate_index = (self.candidate_index + 1).min(count.saturating_sub(1))
+                }
+                "page_up" => self.candidate_index = self.candidate_index.saturating_sub(PAGE_SIZE),
+                "page_down" => {
+                    self.candidate_index =
+                        (self.candidate_index + PAGE_SIZE).min(count.saturating_sub(1))
+                }
+                "tab" => {
+                    let result = if self.editor.has_next_selection_point() {
+                        self.editor.jump_to_next_selection_point()
+                    } else {
+                        self.editor.jump_to_first_selection_point()
+                    };
+                    if result.is_err() {
+                        *status = Some(Status::InternalError);
                     }
-                    Ok(true) => {
-                        if self.pending.is_empty() {
-                            self.locks.retain(|lock| {
-                                !(lock.start < self.cursor && self.cursor < lock.end)
-                            });
-                        }
-                        self.pending = next;
+                    self.candidate_index = 0;
+                }
+                k if k.len() == 1 && (b'1'..=b'9').contains(&k.as_bytes()[0]) => {
+                    let index = self.candidate_index / PAGE_SIZE * PAGE_SIZE
+                        + usize::from(k.as_bytes()[0] - b'1');
+                    if index < count && self.select(index).is_err() {
+                        *status = Some(Status::InternalError);
                     }
-                    Err(_) => *status = Some(Status::InvalidSyllable),
                 }
+                _ => {}
             }
-        }
-        self.bump();
-        true
-    }
-
-    fn selection_key(&mut self, key: &str) -> bool {
-        let length = self.candidates.len();
-        match key {
-            "escape" => self.selecting = false,
-            "enter" | "space" => self.select(self.candidate_index),
-            "up" | "left" => self.candidate_index = self.candidate_index.saturating_sub(1),
-            "down" | "right" => {
-                self.candidate_index = (self.candidate_index + 1).min(length.saturating_sub(1))
-            }
-            "page_up" => self.candidate_index = self.candidate_index.saturating_sub(PAGE_SIZE),
-            "page_down" => {
-                self.candidate_index =
-                    (self.candidate_index + PAGE_SIZE).min(length.saturating_sub(1))
-            }
-            value if value.len() == 1 && matches!(value.as_bytes()[0], b'1'..=b'9') => {
-                let index = self.candidate_index / PAGE_SIZE * PAGE_SIZE
-                    + usize::from(value.as_bytes()[0] - b'1');
-                if index < length {
-                    self.select(index);
-                }
-            }
-            _ => return true,
-        }
-        self.bump();
-        true
-    }
-
-    fn select(&mut self, index: usize) {
-        let Some(candidate) = self.candidates.get(index).cloned() else {
             return;
-        };
-        self.locks
-            .retain(|lock| lock.end <= candidate.start || lock.start >= candidate.end);
-        self.locks.push(Lock {
-            start: candidate.start,
-            end: candidate.end,
-            text: candidate.text,
-        });
-        self.locks.sort_by_key(|lock| lock.start);
-        self.cursor = candidate.end;
-        self.selecting = false;
-        self.candidate_index = 0;
-    }
-
-    fn insert(&mut self, syllable: Syllable) {
-        let position = self.cursor;
-        self.locks
-            .retain(|lock| !(lock.start < position && position < lock.end));
-        for lock in &mut self.locks {
-            if lock.start >= position {
-                lock.start += 1;
-                lock.end += 1;
-            }
         }
-        self.syllables.insert(position, syllable);
-        self.cursor += 1;
-    }
-
-    fn remove(&mut self, position: usize) {
-        self.locks
-            .retain(|lock| !(lock.start <= position && position < lock.end));
-        for lock in &mut self.locks {
-            if lock.start > position {
-                lock.start -= 1;
-                lock.end -= 1;
-            }
+        if key == "escape" {
+            self.cancel();
+            return;
         }
-        self.syllables.remove(position);
-    }
-
-    fn toggle_mode(&mut self) {
-        self.cancel();
-        self.mode = match self.mode {
-            InputMode::Chinese => InputMode::Latin,
-            InputMode::Latin => InputMode::Chinese,
-        };
-        self.bump();
-    }
-
-    fn cancel(&mut self) {
-        self.syllables.clear();
-        self.pending.clear();
-        self.locks.clear();
-        self.cursor = 0;
-        self.text.clear();
-        self.offsets = vec![0];
-        self.candidates.clear();
-        self.selecting = false;
-        self.candidate_index = 0;
-        self.shift_pending = false;
-        self.shift_used = false;
-    }
-
-    fn bump(&mut self) {
-        self.generation = self.generation.wrapping_add(1);
-    }
-
-    fn rebuild(&mut self) -> Result<(), decoder::DecoderError> {
-        let decoded = decoder::decode(&self.lexicon, &self.syllables, &self.locks)?;
-        self.text = decoded.text;
-        self.offsets = decoded.offsets;
-        if !self.selecting {
-            self.candidates.clear();
-            self.candidate_index = 0;
-            if self.pending.is_empty() && !self.syllables.is_empty() {
-                let start = self.cursor.min(self.syllables.len() - 1);
-                let mut choices = vec![];
-                for end in start + 1..=self.syllables.len().min(start + MAX_PHRASE_SYLLABLES) {
-                    for entry in self.lexicon.lookup(&self.syllables[start..end]) {
-                        // Explicit selection may replace intersecting locks;
-                        // select() preserves only disjoint, untouched locks.
-                        choices.push((
-                            entry.frequency,
-                            Candidate {
-                                text: entry.text.clone(),
-                                start,
-                                end,
-                            },
-                        ));
-                    }
+        if self.editor.entering_syllable() && special(key) && key != "space" && key != "backspace" {
+            // libchewing Down clears a pending syllable. Never send a destructive transition.
+            if key == "enter" {
+                *status = Some(Status::InvalidSyllable);
+            }
+            return;
+        }
+        if let Some(tone) = tone(key) {
+            if self.editor.entering_syllable() {
+                let mut reading = self.editor.syllable_buffer();
+                if tone != Bopomofo::TONE1 {
+                    reading.update(tone);
                 }
-                choices.sort_by(|left, right| {
-                    right
-                        .0
-                        .cmp(&left.0)
-                        .then_with(|| left.1.text.cmp(&right.1.text))
-                        .then_with(|| right.1.end.cmp(&left.1.end))
-                });
-                self.candidates = choices
-                    .into_iter()
-                    .take(MAX_CANDIDATES)
-                    .map(|(_, candidate)| candidate)
-                    .collect();
+                if self
+                    .assets
+                    .dictionary
+                    .lookup(&[reading], LookupStrategy::Standard)
+                    .is_empty()
+                {
+                    // Upstream discards an unknown spelling. Keep the editable buffer instead.
+                    *status = Some(Status::UnknownReading);
+                    return;
+                }
+            } else if key == "space" {
+                if self.editor.commit().is_err() {
+                    *status = Some(Status::InternalError);
+                }
+                return;
+            } else {
+                *status = Some(Status::InvalidSyllable);
+                return;
             }
         }
-        Ok(())
+        if !self.editor.entering_syllable() && self.editor.len() >= MAX_SYLLABLES && phonetic(key) {
+            *status = Some(Status::LimitReached);
+            return;
+        }
+        if let Some(event) = native(key)
+            && self.editor.process_keyevent(event) == EditorKeyBehavior::Bell
+        {
+            *status = Some(Status::InvalidSyllable);
+        }
     }
 }

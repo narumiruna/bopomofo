@@ -2,37 +2,44 @@
   "data_kind": "synthetic",
   "scores": "self-authored ranking values, not observed frequency",
   "source": {
-    "base_commit": "87ba8f994573cae52b334e3153a6e5637d0c2e11",
-    "snapshot_sha256": "9e8344caf48aabfa4019df000d232a2be6304e264aeb128a95b7bff4fdc4f415",
-    "paths": 112,
-    "method": "sorted path + NUL + bytes + NUL; source/build/fixture/scripts/CNS inputs only"
+    "base_commit": "46da8acbfc63208692de7d070706de4f668f7c74",
+    "snapshot_sha256": "f0381dba3d24369b3dc728290da92b6ad921fb1c9d720214230b937fc3f7f394",
+    "paths": 125,
+    "method": "sorted path + NUL + bytes + NUL; source/build/fixture/scripts/CNS/libchewing inputs only"
   },
-  "generator_sha256": "736d0691b8a2f780ccfed6ae0805c46707bb904ae30257c788b1a2d6fa6b4381",
-  "cli_sha256": "aed88b416a637c5d8d2b56468971674716aa0e002bb72e095136d4dfbb80da93",
-  "rustc_verbose": "rustc 1.92.0 (ded5c06cf 2025-12-08)\nbinary: rustc\ncommit-hash: ded5c06cf21d2b93bffd5d884aa6e96934ee4234\ncommit-date: 2025-12-08\nhost: aarch64-apple-darwin\nrelease: 1.92.0\nLLVM version: 21.1.3",
+  "generator_sha256": "90ba6d37b03a16a0ecfc33ade60615a5b3ae41fdf49e94aa44907d50d73d3338",
+  "cli_sha256": "7926a740865226cec2e974cc2c1b540bf546f444c0155d88b4c276ddb7333a1d",
+  "rustc_verbose": "rustc 1.92.0 (ded5c06cf 2025-12-08)\nbinary: rustc\ncommit-hash: ded5c06cf21d2b93bffd5d884aa6e96934ee4234\ncommit-date: 2025-12-08\nhost: x86_64-unknown-linux-gnu\nrelease: 1.92.0\nLLVM version: 21.1.3",
   "cargo_version": "cargo 1.92.0 (344c4567c 2025-10-21)",
   "generated": {
     "format": "bopomofo-lexicon-v1",
-    "sha256": "471e640aa6db3ee495da0bf73a7b9dfd49664a3f95e6f8a67641d4cfa164e9ed",
+    "sha256": "06b9200f98ad3091b6650bda5e3469329ec9285eae783c1dd6e8b22256f8bdb8",
     "entries": 100000,
-    "bytes": 3526105
+    "bytes": 3981521
   },
   "canonical": {
     "format": "bopomofo-lexicon-v1",
-    "sha256": "0d01a127364197c8c09ab1d40e6faec47372392eb4f7651779cd81ce94f5376f",
+    "sha256": "cf76e95f5c1bbd5d1a8404b561103bb56a30db0f75615cab9e41d8e4e67936a6",
     "entries": 100000,
-    "bytes": 3526105
+    "bytes": 3981521
+  },
+  "assets": {
+    "format": "bopomofo-assets-v1",
+    "sha256": "a7ffd76bbe72f800c7d906521da018694c07c79dd6f8dac637a1fe013725a21f",
+    "entries": 100000,
+    "bytes": 2254498
   },
   "distribution": {
-    "readings": 406,
+    "readings": 421,
     "max_candidates_per_reading": 256,
     "max_phrase_syllables": 16,
     "common_prefix_filler_readings": 390
   },
-  "replay_output_sha256": "a81cb4b1a22f11f344e0ef90a1516031bfa5e965d39ebe25ae06b8362387bbd1",
+  "replay_output_sha256": "1b353d00346174a854b7befb6bcc578dcf7d3d81da19d84bce60aa86fc1c9952",
   "checks": {
     "deterministic_generation": true,
     "canonical_rebuild_identical": true,
+    "asset_rebuild_identical": true,
     "debug_release_replay_identical": true,
     "repeated_replay_identical": true
   },
@@ -46,23 +53,23 @@
       ],
       "iterations": 100,
       "lexicon": {
-        "format": "bopomofo-lexicon-v1",
-        "sha256": "0d01a127364197c8c09ab1d40e6faec47372392eb4f7651779cd81ce94f5376f",
+        "format": "bopomofo-assets-v1",
+        "sha256": "a7ffd76bbe72f800c7d906521da018694c07c79dd6f8dac637a1fe013725a21f",
         "entries": 100000,
-        "bytes": 3526105
+        "bytes": 2254498
       },
       "corpus": {
-        "sha256": "de40e381adf3e69f7f2822da7bbd0e4cbb46b610d1f2d2803df5c9c416c3ba72",
-        "bytes": 59737,
-        "events": 325,
-        "key_events": 325,
-        "total_events": 32500
+        "sha256": "12e4687d281ef306872fa229851b3e6aa275d9164a333afd1059bd961fba0359",
+        "bytes": 69958,
+        "events": 331,
+        "key_events": 331,
+        "total_events": 33100
       },
       "environment": {
-        "os": "macos",
-        "os_version": "26.6.2",
-        "arch": "aarch64",
-        "cpu": "Apple M4"
+        "os": "linux",
+        "os_version": "6.18.33.2-microsoft-standard-WSL2",
+        "arch": "x86_64",
+        "cpu": "AMD Ryzen 9 7950X3D 16-Core Processor"
       },
       "build": {
         "package": "ime-cli",
@@ -72,26 +79,35 @@
         "rustc_version_status": "unavailable: compiler version was not embedded at build time"
       },
       "initialization": {
-        "lexicon_parse_ns": 79682208,
-        "engine_new_ns": 125,
-        "total_ns": 79682333
+        "lexicon_parse_ns": 17764085,
+        "engine_new_ns": 14628,
+        "total_ns": 17778713
       },
       "per_key_latency": {
         "unit": "nanoseconds",
         "percentile_method": "nearest_rank",
-        "samples": 32500,
-        "p50": 93500,
-        "p95": 203208,
-        "p99": 340417
+        "samples": 33100,
+        "p50": 2140438,
+        "p95": 8226181,
+        "p99": 8569741
+      },
+      "probe_latency": {
+        "unit": "nanoseconds",
+        "percentile_method": "nearest_rank",
+        "samples": 33100,
+        "p50": 641,
+        "p95": 1452,
+        "p99": 2144
       },
       "memory": {
         "measurement": "process_resident_set_after_benchmark",
-        "source": "macos_ps_rss_kib",
-        "resident_bytes": 46170112,
+        "source": "linux_proc_self_status_vmrss_kib",
+        "resident_bytes": 9916416,
         "status": "available"
       },
       "method": {
         "timed_call": "Engine::handle including the complete returned snapshot",
+        "probe_call": "Engine::probe measured separately immediately before each key; it can warm caches",
         "timed_events": "key events only; other fixture events still run",
         "repetition_reset": "fresh Engine::new before each repetition",
         "excluded": [
@@ -113,23 +129,23 @@
       ],
       "iterations": 100,
       "lexicon": {
-        "format": "bopomofo-lexicon-v1",
-        "sha256": "0d01a127364197c8c09ab1d40e6faec47372392eb4f7651779cd81ce94f5376f",
+        "format": "bopomofo-assets-v1",
+        "sha256": "a7ffd76bbe72f800c7d906521da018694c07c79dd6f8dac637a1fe013725a21f",
         "entries": 100000,
-        "bytes": 3526105
+        "bytes": 2254498
       },
       "corpus": {
-        "sha256": "de40e381adf3e69f7f2822da7bbd0e4cbb46b610d1f2d2803df5c9c416c3ba72",
-        "bytes": 59737,
-        "events": 325,
-        "key_events": 325,
-        "total_events": 32500
+        "sha256": "12e4687d281ef306872fa229851b3e6aa275d9164a333afd1059bd961fba0359",
+        "bytes": 69958,
+        "events": 331,
+        "key_events": 331,
+        "total_events": 33100
       },
       "environment": {
-        "os": "macos",
-        "os_version": "26.6.2",
-        "arch": "aarch64",
-        "cpu": "Apple M4"
+        "os": "linux",
+        "os_version": "6.18.33.2-microsoft-standard-WSL2",
+        "arch": "x86_64",
+        "cpu": "AMD Ryzen 9 7950X3D 16-Core Processor"
       },
       "build": {
         "package": "ime-cli",
@@ -139,26 +155,35 @@
         "rustc_version_status": "unavailable: compiler version was not embedded at build time"
       },
       "initialization": {
-        "lexicon_parse_ns": 70566125,
-        "engine_new_ns": 167,
-        "total_ns": 70566292
+        "lexicon_parse_ns": 19753915,
+        "engine_new_ns": 18075,
+        "total_ns": 19771990
       },
       "per_key_latency": {
         "unit": "nanoseconds",
         "percentile_method": "nearest_rank",
-        "samples": 32500,
-        "p50": 88875,
-        "p95": 186625,
-        "p99": 197333
+        "samples": 33100,
+        "p50": 2144290,
+        "p95": 8246784,
+        "p99": 8566334
+      },
+      "probe_latency": {
+        "unit": "nanoseconds",
+        "percentile_method": "nearest_rank",
+        "samples": 33100,
+        "p50": 632,
+        "p95": 1402,
+        "p99": 2004
       },
       "memory": {
         "measurement": "process_resident_set_after_benchmark",
-        "source": "macos_ps_rss_kib",
-        "resident_bytes": 46137344,
+        "source": "linux_proc_self_status_vmrss_kib",
+        "resident_bytes": 9920512,
         "status": "available"
       },
       "method": {
         "timed_call": "Engine::handle including the complete returned snapshot",
+        "probe_call": "Engine::probe measured separately immediately before each key; it can warm caches",
         "timed_events": "key events only; other fixture events still run",
         "repetition_reset": "fresh Engine::new before each repetition",
         "excluded": [

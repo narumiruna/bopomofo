@@ -26,7 +26,7 @@ public:
     void capabilityChanged(fcitx::InputContextEvent &event);
 private:
     void lifecycle(fcitx::InputContextEvent &event, const char *type, bool enabled);
-    const std::string lexicon_;
+    const VerifiedAssets lexicon_;
     Keymap keymap_;
     fcitx::FactoryFor<ContextProperty> factory_;
     std::unique_ptr<fcitx::HandlerTableEntry<fcitx::EventHandler>> capabilityWatcher_;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Dry-run is the default. --apply needs separate user authorization.
 source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh" "$@"
-sources=(libbopomofo-dev.so bopomofo-dev-addon.conf bopomofo-dev-inputmethod.conf lexicon.tsv lexicon.sha256)
+sources=(libbopomofo-dev.so bopomofo-dev-addon.conf bopomofo-dev-inputmethod.conf assets/dictionary.dat assets/assets.json assets/Project-LICENSE.txt assets/Engine-LICENSE.txt assets/Engine-AUTHORS.txt assets/Engine-NOTICE.txt assets/Data-LICENSE.txt assets/Data-NOTICE.txt)
 for source in "${sources[@]}"; do
     [[ -f "$build/$source" && ! -L "$build/$source" ]] || fail 'Build all addon artifacts first'
 done

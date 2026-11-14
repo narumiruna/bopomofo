@@ -18,6 +18,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
+name = "chewing"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fc533f0b524ce84ec20fe9025169e64c866df84a50b497acb6a62f6dccac264"
+dependencies = [
+ "der",
+ "log",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -34,6 +44,15 @@ checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
 dependencies = [
  "generic-array",
  "typenum",
+]
+
+[[package]]
+name = "der"
+version = "0.7.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb"
+dependencies = [
+ "zeroize",
 ]
 
 [[package]]
@@ -60,6 +79,7 @@ dependencies = [
 name = "ime-cli"
 version = "0.1.0"
 dependencies = [
+ "chewing",
  "ime-core",
  "serde",
  "serde_json",
@@ -70,16 +90,31 @@ dependencies = [
 name = "ime-core"
 version = "0.1.0"
 dependencies = [
+ "chewing",
+ "der",
+ "ime-test-support",
+ "log",
  "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]
 name = "ime-ffi"
 version = "0.1.0"
 dependencies = [
+ "chewing",
  "ime-core",
  "serde_json",
- "sha2",
+]
+
+[[package]]
+name = "ime-test-support"
+version = "0.1.0"
+dependencies = [
+ "chewing",
+ "ime-core",
+ "serde_json",
 ]
 
 [[package]]
@@ -87,6 +122,7 @@ name = "ime-windows"
 version = "0.1.0"
 dependencies = [
  "ime-core",
+ "ime-test-support",
  "serde_json",
  "sha2",
  "windows",
@@ -104,6 +140,12 @@ name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
+
+[[package]]
+name = "log"
+version = "0.4.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "memchr"
@@ -332,6 +374,12 @@ checksum = "3949bd5b99cafdf1c7ca86b43ca564028dfe27d66958f2470940f73d86d75b37"
 dependencies = [
  "windows-link",
 ]
+
+[[package]]
+name = "zeroize"
+version = "1.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
 
 [[package]]
 name = "zmij"

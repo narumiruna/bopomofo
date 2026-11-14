@@ -49,14 +49,31 @@ function Get-TsfRegistrationContext([string]$DllPath) {
     [PSCustomObject]@{ Path = $Path; ExistingPath = $ExistingPath; Regsvr32 = $Regsvr32; Architecture = $Architecture }
 }
 
-function Assert-TsfLexicon([string]$Directory) {
-    $Lexicon = Join-Path $Directory 'lexicon.tsv'
-    $Manifest = Join-Path $Directory 'lexicon.sha256'
-    if (-not (Test-Path -LiteralPath $Lexicon -PathType Leaf) -or -not (Test-Path -LiteralPath $Manifest -PathType Leaf)) {
-        throw 'The DLL directory must contain lexicon.tsv and lexicon.sha256.'
+function Assert-TsfAssets([string]$Directory) {
+    $Dictionary = Join-Path $Directory 'dictionary.dat'
+    $Manifest = Join-Path $Directory 'assets.json'
+    if (-not (Test-Path -LiteralPath $Dictionary -PathType Leaf) -or -not (Test-Path -LiteralPath $Manifest -PathType Leaf)) {
+        throw 'The DLL directory must contain dictionary.dat and assets.json.'
     }
-    if ((Get-Item -LiteralPath $Manifest).Length -gt 66) { throw 'Invalid checksum manifest size.' }
-    $Expected = [IO.File]::ReadAllText($Manifest).Trim()
-    $Actual = (Get-FileHash -LiteralPath $Lexicon -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ($Expected -cnotmatch '^[0-9a-f]{64}$' -or $Expected -cne $Actual) { throw 'Lexicon checksum mismatch.' }
+    $Length = (Get-Item -LiteralPath $Dictionary).Length
+    if ($Length -le 0 -or $Length -gt 33554432 -or (Get-Item -LiteralPath $Manifest).Length -gt 16384) {
+        throw 'Invalid asset size.'
+    }
+    try { $Data = [IO.File]::ReadAllText($Manifest) | ConvertFrom-Json -Depth 16 }
+    catch { throw 'Invalid asset manifest.' }
+    if ($Data.format -cne 'bopomofo-assets-v1' -or $Data.engine -cne 'chewing-0.13.1' -or
+        $Data.builder -cne 'bopomofo-assets-v1' -or @($Data.files).Count -ne 1 -or
+        $Data.files[0].name -cne 'dictionary.dat' -or $Data.files[0].bytes -ne $Length) {
+        throw 'Incompatible asset manifest.'
+    }
+    $Actual = (Get-FileHash -LiteralPath $Dictionary -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($Data.files[0].sha256 -cnotmatch '^[0-9a-f]{64}$' -or $Data.files[0].sha256 -cne $Actual) {
+        throw 'Asset checksum mismatch.'
+    }
+    foreach ($Name in @('Project-LICENSE.txt','Engine-LICENSE.txt','Engine-AUTHORS.txt','Engine-NOTICE.txt','Data-LICENSE.txt','Data-NOTICE.txt')) {
+        $File = Join-Path $Directory $Name
+        if (-not (Test-Path -LiteralPath $File -PathType Leaf) -or (Get-Item -LiteralPath $File).Length -eq 0) {
+            throw 'Missing license or notice.'
+        }
+    }
 }

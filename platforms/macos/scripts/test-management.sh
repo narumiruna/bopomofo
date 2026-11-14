@@ -59,14 +59,14 @@ ln -s "$SANDBOX/backups" "$BACKUPS"
 run_fail uninstall --dry-run
 rm "$BACKUPS"
 mv "$SANDBOX/backups" "$BACKUPS"
-printf '\n' >> "$DEST/Contents/Resources/lexicon.tsv"
+printf '\n' >> "$DEST/Contents/Resources/dictionary.dat"
 run_fail uninstall --dry-run
 /usr/bin/ditto "$APP" "$DEST"
-printf '%064d\n' 0 > "$DEST/Contents/Resources/lexicon.sha256"
+printf '%064d\n' 0 > "$DEST/Contents/Resources/assets.json"
 /usr/bin/codesign --force --sign - --timestamp=none "$DEST" >/dev/null 2>&1
 run_fail uninstall --dry-run
 /usr/bin/ditto "$APP" "$DEST"
-rm "$DEST/Contents/Resources/lexicon.sha256"
+rm "$DEST/Contents/Resources/assets.json"
 /usr/bin/codesign --force --sign - --timestamp=none "$DEST" >/dev/null 2>&1
 run_fail uninstall --dry-run
 printf 'Management scripts: %s dry-run safety cases passed (sandbox only; --apply never executed)\n' "$TESTS"

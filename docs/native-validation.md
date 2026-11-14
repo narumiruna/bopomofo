@@ -10,6 +10,43 @@ Rust tests、platform build、headless contract tests 與 desktop checks 是不�
 
 首次本機驗證與 CI commit `c6d2e2c` 的 source/build/fixture snapshot 包含 87 個路徑，SHA-256 為 `6de256861cf932740b1f0874e7b14133aae70737541c6823f05709f07145b2b8`。計算法為：以 `git ls-files --cached --others --exclude-standard -z` 列出 `.gitattributes`、Cargo manifests／lock、toolchain、`crates/`、`platforms/`、`fixtures/`、`.github/`，依路徑排序後，逐筆串接 `path + NUL + contents + NUL` 再取 SHA-256。
 
+## libchewing migration — 2026-11-14 UTC
+
+Branch `narumi/refactor/libchewing-engine` 從 `46da8ac` 全面改用 `chewing` 0.13.1、C ABI v2 與唯一 asset pipeline。以下是本輪證據，不沿用歷史成功紀錄。Source/build/fixture snapshot：125 paths，SHA-256 `f0381dba3d24369b3dc728290da92b6ad921fb1c9d720214230b937fc3f7f394`；計算法與精確範圍見 [benchmark method](benchmarks/README.md#identity-and-method)。Final snapshot 為 `c5072de5022fb7cf44a84723b5aa1c23bbd0ea8c275bd79efcaa779e09474cb3`；與 timing snapshot 只有 `.gitattributes` 對原樣上游 AUTHORS 的 whitespace-check rule 不同，已重算並驗證。Code、data、CLI bytes 與 corpus 都不變。
+
+Host：Linux x86_64／WSL2 6.18.33.2、AMD Ryzen 9 7950X3D、Rust/Cargo 1.92.0。Docker SDK 為 Ubuntu 24.04、GCC 13.3、CMake 3.28.3、Fcitx5 5.1.7、xkbcommon 1.6.0、nlohmann_json 3.11.3。Source mount readonly，所有 Linux build 從空 temporary directory 開始。
+
+| Check | Result / scope |
+| --- | --- |
+| Baseline Rust / Linux | Workspace debug／release 各 95；Python 9；format／Clippy exit 0；原 C ABI v1 headless CTest 7/7。 |
+| Release offline | Host baseline 首次因缺 `jq` status 127 失敗。隔離容器補齊既有依賴後 baseline 與 final 均 20/20 passed；stub cargo／gh、無 network／remote writes。 |
+| Upstream discovery | 固定版 explicit memory editor、non-BMP、selection／commit／ack 與 embedded mini metadata，三個獨立 spike tests passed。 |
+| Final Rust | Format／Clippy exit 0；workspace debug／release 各 **74 passed**：CLI 36、core 16、FFI 6、Windows portable 16。舊 parser／decoder／index 的 41 個 core tests 隨實作移除，改以 16 個 upstream-boundary tests 與完整 replay 驗證，不保留第二套算法。 |
+| Replay | 四個 profiles、12 corpora／**478 events**：baseline 361、CNS 81、quality 17、Unicode 19。各自編譯 assets，手寫期待；debug／release passed。Unicode 保留完整 `𠀀é😀`、11 bytes／6 UTF-16 units，以四 readings 表示，另檢查 phrase 內部 byte cursor 5。 |
+| Probe / privacy | 20,000-event repeated-probe／actual parity；sentinel logger capture、compile-time log Off 與 memory-only user store。Final Docker `scripts/check-engine-privacy.sh` 的 debug／release initialization、handle、probe、selection、reset、drop markers 之間，file／network／read／write syscalls 均為零，controlled HOME 保持空白。不是所有路徑的形式化證明。 |
+| Assets / ABI | CLI asset pipeline 4、core asset/schema negatives 5、FFI 6；缺／額外／重複／traversal、bounds、UTF-8、hash／version、checksum-valid cycle／empty node／bad range、ownership、panic boundary、重複生命週期與一次性 commit 均 passed。V1 constructor 已刪除，v1 host version guard 必須拒絕 v2 library。 |
+| Linux v2 Release | Clean build，**11/11 CTests passed**：ABI、legacy rejection、四組 replay、wrong-profile rejection、default data、管理 dry-run 與 known-gap reproducer。 |
+| C++ ASan / UBSan | Clean Debug C++ build，leak detection／halt-on-error，**11/11 passed**；known-gap case 另跑 **1/1**。Rust release archive 與 system SDK libraries **未 instrumentation**。 |
+| Windows cross-check | x64／x86／ARM64 MSVC targets 各自 `cargo check --all-targets --locked` 與 Clippy `-D warnings` exit 0；不是 native link／load／desktop 證據。 |
+| PowerShell | Official 7.5.0 Linux amd64 container，5 個 scripts AST passed；portable asset preflight 的 valid package + 5 negatives passed，包含等長 checksum corruption 與 missing data license。未呼叫 Register／Unregister。原嘗試的版本專屬 image tag 不存在（125），改用實際解析為 7.5.0 的 `7.5-debian-12`，digest `sha256:7ab5bd5ca6f95a3351fa0c6a1205237d57048c94542355aab55519a0861a9b25` 後重跑成功。 |
+| Scripts / workflow / docs | 所有相關 Bash syntax、actionlint（不啟用選用 ShellCheck／Pyflakes）、local Markdown file links 與 whitespace checks passed。macOS SDK execution 與 Windows native execution 尚待本輪 hosted CI，不能借用舊紀錄。 |
+| Default data | Pinned source／獨立 LGPL grants／notices 見 `data/SOURCES.md`、`data/libchewing/NOTICE.md`；160,440 entries 兩次 build bytes 相同，明確驗證 `你好` phrase、license 分離與 caller-supplied data 不被改授權。CNS 原始 bytes 不變。 |
+| Benchmarks | Python 9/9；三個 profiles 的兩次 canonical／asset builds、debug／release／repeat replay 與各兩次 100-repetition release benchmarks 全部 exit 0。Synthetic handle p95 **8.20–8.31 ms > 5 ms**，probe p95 1.26–1.45 µs；不符合 5 ms 目標。Default data 的八-event synthetic corpus 另列 report，不能代表產品 latency／品質。 |
+
+可重跑入口見 README、三平台指南及 benchmark README。所有 input 都是 public synthetic fixtures，不擷取真實鍵盤。核對 node schema 後才使用上游 lazy iterator；這防止 hash 有效但結構損壞的 index 導致無界 traversal。Snapshot 重用一次上游 conversion，並正確映射 phrase 內部 scalar offset；沒有自研 runtime parser／decoder、Editor clone 或 keystroke replay。
+
+| Current local artifact | SHA-256 |
+| --- | --- |
+| Linux Release addon | `ff85ecf2ebe3e3f525e3f880a23e527ee5d3228091dccdc31573814e19e63eb1` |
+| C++ ASan/UBSan addon | `57e081cd2c5ca32cd69997137da36c042f4f4df4a873d3241278416027527a58` |
+| Rust release archive, both builds | `c2f994e6721d4f66da68dae8acdebd545112a56594be0f255c60c6f06d909465` |
+| C ABI v2 header | `fde21c9e05c1e4d0bb4dd53384b851ff8b55aa8822ffb6c6252b3265aca5e246` |
+| Default dictionary / manifest | `0440c11a9e92bf09497a1c3014a8cc79bb9f552981d1feb29230f2449ea44439` / `6bb6c5d7022b335979077d5dfc65b5c6fa0439f0ada62447b4736204c7b1df6b` |
+
+Build-local prefix 會影響 addon bytes，不宣稱 native binary byte-reproducibility。本機 logs 在 ignored `target/libchewing-evidence/`；small metric reports 在 `docs/benchmarks/`。Native artifacts 不提交或發布。以下舊紀錄所引用同名 benchmark files，應讀 baseline `46da8ac` 的 Git history，不是本輪覆寫後的報告。
+
+**Failed / blocked / not run：** Final local required checks 沒有未修正的失敗。已量得 synthetic p95 超過 5 ms，保留為效能風險，不更改資料或次數掩蓋。Representative corpus、Taiwan 品質、installed native IME、application／display matrix 與 Fcitx index-only safety 仍 open。macOS／Windows SDK build 尚待本輪 CI；任何後續 failure 都須修正。沒有 IME 安裝、註冊、啟用、移除、系統設定變更、tag、release dispatch 或 artifact publication。
+
 ## CNS11643 rebase — 2026-11-04 UTC
 
 PR #3 從 `8392601b44d86fe2989f1b8d252eb64ed5c56d4e` rebase 到已合併 PR #4 的 `main` commit `8b0b7b2d8c4bac80d7af95102fb53cd50fa78941`。保留兩個原始 commits 的用途與全部九個 CNS data/license/notice blobs，與 rebase 前逐檔 bytes 相同。未重新下載或擴大資料來源。
@@ -403,13 +440,13 @@ sequenceDiagram
 
 | Responsible role | Prerequisite / required action | 尚未通過的 gate |
 | --- | --- | --- |
-| Windows tester / CI owner | 三架構 build／load／非註冊 tests 已通過；提供已授權的 installed TSF／app 環境。 | Registration、activation、實際 document edit session、candidate rendering 與各架構 desktop matrix 仍未驗證。 |
-| macOS tester | 授權使用 scoped 管理腳本安裝／啟用 bundle，依 macOS guide 操作與保存結果。 | 所有 installed native app／display checks 未驗證。 |
+| Windows build owner / tester | 先保存本輪三架構 native build／load／非註冊 CI 結果；再提供另行授權的 installed TSF／app 環境。歷史 pass 不代替本輪。 | Registration、activation、實際 document edit session、candidate rendering 與各架構 desktop matrix 仍未驗證。 |
+| macOS build owner / tester | 先以本輪 source 執行 `platforms/macos/scripts/test.sh` 並保存 bundle／contract hashes；再另行授權 scoped 安裝／啟用與 native matrix。 | 所有 installed native app／display checks 未驗證。 |
 | Linux tester / framework owner | 提供 X11／Wayland session，驗證各 frontend，並解決或證明 candidate request 的 generation／ordering 契約。 | Desktop matrix 與 stale rendered-click 正確性未通過。 |
-| Data owner / rights holder | 依 `data/SOURCES.md` 提供逐檔 license chain、固定 snapshots、conversion／redistribution grants、notices 與來源選定。一般批准不能補足 rights-holder grant。 | 正式 importer、phrase lexicon、真實 phrase frequency 與資料散布保持 blocked。 |
+| Data owner / rights holder | 所選 libchewing `word.csv`／`tsi.csv` 的原始 snapshots、明示 LGPL grants、builder、notices 已完成；其他 candidates 仍依 `data/SOURCES.md` 取得逐檔權利。一般批准不能補足 grant。 | 不擴大匯入範圍。Taiwan phrase 品質、現代實測 frequency 與 product release review 仍 open；不得把已完成的所選 data gate 與其他來源混為一談。 |
 | Corpus / validation owner | 提供有權使用、符合 Taiwan 選樣標準的 corpus、人工核對的 reading／replay，以及獨立 benchmark partition。 | Synthetic reports 不解除正式資料與代表性 corpus 的 p95 < 5 ms gate。 |
 | Fcitx framework / client owner | 依 `docs/linux.md` 的最小報告提供可驗證的 generation／render acknowledgement／ordering 契約或修正；替代設計須 project owner 另行核准。 | Stale rendered-click safety 是已知 correctness gap；headless reproducer 通過不解除 Linux acceptance gate。 |
 | Release owner | 依 `docs/releases.md` 取得指定 commit／version／tag、runner 使用與 remote writes 的 scoped authorization，再保存 hosted run／jobs／source-only draft／notes 證據。 | 首次 hosted Release 與 draft inspection 保持 unverified。本輪不 dispatch、推 tag 或建立 release。 |
-| Release owner | 在適用 gates 通過後另行授權 native binary distribution、signing／notarization 及 publication。 | 不發布，也不提供產品支援聲明；source PR 與 coding plan 完成不代表產品驗收。 |
+| Release owner | 在適用 gates 通過後，完成 LGPL／data notices、complete corresponding source、static-link relinking review，再另行授權 native binary distribution、signing／notarization 及 publication。 | 不發布，也不提供產品支援聲明；source PR 與 coding plan 完成不代表產品驗收。 |
 
 這些限制未解除前，保留 PLAN.md 的未完成項目，不以文件完成代替實作與驗收。

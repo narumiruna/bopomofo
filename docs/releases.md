@@ -50,7 +50,7 @@ These commands are instructions, not evidence that a release was run. Obtain exp
    ```
 
 5. Inspect the Release run and its draft. Review the generated notes, source commit, prerelease marker, and validation warning. Generated notes are not validation evidence.
-6. Leave the draft unpublished until the release owner obtains separate publication approval. Native binary distribution also requires the applicable native/data gates and signing/notarization decisions.
+6. Leave the draft unpublished until the release owner obtains separate publication approval. Native binary distribution also requires the applicable native/data gates and signing/notarization decisions. libchewing and selected data retain LGPL-2.1-or-later. Preserve their copyrights, authors, licenses, notices, and complete corresponding source. Review static-link relinking obligations before binary distribution; the project AGPL license does not replace these terms.
 
 The workflow does not change versions or create tags. GitHub selects the comparison range for generated notes, including for the first release.
 

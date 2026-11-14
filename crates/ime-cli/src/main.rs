@@ -1,7 +1,9 @@
+mod assets;
 mod benchmark;
 mod cns11643;
 mod files;
 mod replay;
+mod source;
 
 use serde::Serialize;
 use std::ffi::OsString;
@@ -11,11 +13,13 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const USAGE: &str = "Usage:
-  ime-cli replay <lexicon.tsv> <case.jsonl>
+  ime-cli replay <asset-directory> <case.jsonl>
+  ime-cli build-assets <authoring.tsv|approved-upstream-source-directory> <new-output-directory>
+  ime-cli validate-assets <asset-directory>
   ime-cli validate-lexicon <file>
   ime-cli build-lexicon <input.tsv> <output.tsv>
   ime-cli import-cns11643 <source-directory> <seed.tsv> <output.tsv>
-  ime-cli benchmark <lexicon.tsv> <case.jsonl> <iterations>
+  ime-cli benchmark <asset-directory> <case.jsonl> <iterations>
 
 Replay expectations: object fields are subsets; arrays have equal lengths;
 primitive values match exactly. Each JSONL record has event and optional expect.
@@ -69,6 +73,8 @@ impl fmt::Display for Error {
 
 enum Command {
     Help,
+    BuildAssets(PathBuf, PathBuf),
+    ValidateAssets(PathBuf),
     Replay(PathBuf, PathBuf),
     ValidateLexicon(PathBuf),
     BuildLexicon(PathBuf, PathBuf),
@@ -83,6 +89,10 @@ impl Command {
         };
         let command = match (name, args.len()) {
             ("--help" | "-h", 1) => Self::Help,
+            ("build-assets", 3) => {
+                Self::BuildAssets(args[1].clone().into(), args[2].clone().into())
+            }
+            ("validate-assets", 2) => Self::ValidateAssets(args[1].clone().into()),
             ("replay", 3) => Self::Replay(args[1].clone().into(), args[2].clone().into()),
             ("validate-lexicon", 2) => Self::ValidateLexicon(args[1].clone().into()),
             ("build-lexicon", 3) => {
@@ -103,7 +113,7 @@ impl Command {
             }
             (
                 "--help" | "-h" | "replay" | "validate-lexicon" | "build-lexicon"
-                | "import-cns11643" | "benchmark",
+                | "import-cns11643" | "benchmark" | "build-assets" | "validate-assets",
                 _,
             ) => {
                 return Err(Error::arguments("invalid_argument_count"));
@@ -119,10 +129,14 @@ impl Command {
                 writeln!(output, "{USAGE}").map_err(|_| Error::new("output_write_failed"))
             }
             Self::Replay(lexicon_path, case_path) => {
-                let lexicon = files::load_lexicon(&lexicon_path)?;
+                let lexicon = assets::load(&lexicon_path)?;
                 let case = replay::Case::load(&case_path)?;
                 replay::run(lexicon.data, &case, output)
             }
+            Self::BuildAssets(input, destination) => {
+                write_json(output, &assets::build(&input, &destination)?)
+            }
+            Self::ValidateAssets(path) => write_json(output, &assets::load(&path)?.summary),
             Self::ValidateLexicon(path) => {
                 let lexicon = files::load_lexicon(&path)?;
                 write_json(output, &lexicon.summary)

@@ -57,3 +57,5 @@ jobs:
 
 # Draft creation is not publication approval. Do not attach native binaries,
 # install/register/enable an IME, or infer OS/application support from CI.
+# libchewing engine/data notices and static-link source obligations also apply
+# to any future binary distribution; this workflow still creates source-only drafts.

@@ -1,56 +1,59 @@
-# Synthetic lexicon stress checks
+# libchewing benchmark evidence
 
-These reports measure self-authored synthetic data only. Every CLI report retains `scope: fixture_only`. They do not establish Taiwan reading quality, candidate quality, native UI behavior, or representative product performance. The production-lexicon/corpus p95 < 5 ms gate remains blocked.
+All reports retain `scope: fixture_only`. No report establishes product performance, Taiwan reading quality, native UI behavior or application compatibility. **Synthetic handle p95 is 8.20–8.31 ms, above 5 ms.** The representative product p95 < 5 ms gate remains open; this migration does not claim a speed improvement.
 
-## Run
+## Synthetic stress run
 
-From the repository root, with Rust 1.92.0, uv, Git, and a local Python interpreter:
-
-```bash
-uv run --no-project python scripts/benchmark-synthetic.py
-```
-
-The script uses the Python standard library. It builds the existing debug and release CLI, generates three fixed profiles, validates each lexicon, builds it twice, and compares canonical bytes. It checks every replay expectation, compares debug/release/repeated replay output, then runs the existing release benchmark twice with 100 repetitions per run. A CLI failure or mismatch stops the script with a nonzero exit status.
-
-Generated TSV, JSONL, canonical copies, and reports stay in ignored `target/lexicon-stress/`. The script does not read an installed IME, capture keyboard input, import external data, change runtime policy, or publish artifacts. Run it on a development host with sufficient disk and memory; the recorded host is macOS arm64. No Windows script execution is claimed.
-
-The lightweight offline tests do not build Cargo or run the stress benchmark:
+Use Rust 1.92.0, Git and uv from the repository root:
 
 ```bash
-uv run --no-project python -m unittest discover -s scripts/tests
+uv run --offline --no-project python -m unittest discover -s scripts/tests
+uv run --offline --no-project python scripts/benchmark-synthetic.py
 ```
 
-The existing Linux CI job runs these nine generator tests with pinned uv 0.9.26. Full profiles are not a CI step. Rust tests separately accept 250,000 entries, reject entry 250,001, accept 256 candidates per reading, and reject candidate 257. CLI tests also verify that candidate-limit failure preserves the old canonical file and removes staging files.
+Nine lightweight generator tests run in CI. The full suite is a separate, long-running development check. It builds debug/release CLI binaries, generates three profiles, validates and exports each source twice, compiles assets twice, compares bytes, checks all expectations, compares debug/release/repeated replay output, and runs two release benchmarks with **100 repetitions each**. A failed command or mismatch stops the script. No native installation, real input capture or publication occurs.
 
-## Data and independent expectations
+### Retained reports
 
-Scores are artificial ranking values, not observed frequency. No entry comes from a dictionary or corpus.
+Generated TSV, JSONL, binary assets and raw reports remain in ignored `target/lexicon-stress/`. The small retained reports are copied here only after success:
 
-- Each profile has 16 primary entries: repeated `ㄧ` readings of lengths 1 through 16, with score 1,000,000 and text `詞01` through `詞16`.
-- The single-syllable reading has 255 more candidates, `候選001` through `候選255`, each with score 1. Together with `詞01`, it reaches the 256-candidate lexicon limit.
-- Filler readings start with `ㄨ ㄩ`, followed by three base-16 syllables. Each group has at most 256 unique synthetic texts and score 1. The final group can be partial.
-- The replay composes 64 syllables, attempts an overflow, pages a 256-item snapshot, selects an alternative and the last candidate at index 255, deletes and inserts syllables, cancels, and tests one-time commit. It also exercises the first and last filler groups.
+| Entries | Generated TSV bytes | Exact readings | Filler readings | Replay events | Handle p95, two runs | Probe p95, two runs |
+| --- | --- | --- | --- | --- | --- | --- |
+| [10,000](synthetic-10000.json) | 390,268 | 69 | 38 | 331 | 8.252 / 8.203 ms | 1.423 / 1.342 µs |
+| [100,000](synthetic-100000.json) | 3,981,521 | 421 | 390 | 331 | 8.226 / 8.247 ms | 1.452 / 1.402 µs |
+| [250,000](synthetic-250000.json) | 9,970,799 | 1,007 | 976 | 332 | 8.311 / 8.274 ms | 1.382 / 1.262 µs |
 
-Expectations are authored from the input specification and decoder rules, not copied from engine output. Equal primary scores prefer fewer segments, then the longest leftmost span. Thus 64 repeated syllables yield `詞16詞16詞16詞16`; 63 yield `詞16詞16詞16詞15`. At the last syllable, page two and key `2` select `候選010`, locking only that syllable. A new selection starts at page zero; 28 Page Down events reach index 252 on page 28. Key `4` selects the final `候選255`, not a truncated 128-item list. Backspace removes the lock and restores the 63-syllable result. Unknown filler singletons preserve their reading until the complete five-syllable phrase matches.
+RSS samples range from 7.15 to 12.89 MiB. They are not peak memory or allocation counts.
 
-| Entries | TSV bytes | Exact readings | Shared-prefix filler readings | Replay events | Events per 100 repetitions |
-| --- | --- | --- | --- | --- | --- |
-| 10,000 | 346,921 | 55 | 39 | 325 | 32,500 |
-| 100,000 | 3,526,105 | 406 | 390 | 325 | 32,500 |
-| 250,000 | 8,828,716 | 992 | 976 | 326 | 32,600 |
+## Data and manual expectations
 
-Every profile reaches 16 syllables per phrase and 256 candidates per reading. All remain below the CLI 32 MiB input limit and the benchmark 1,000,000-event limit. This concentrated distribution stresses known limits; it is not a model of natural language or typical input.
+All synthetic entries and scores are self-authored, not copied from a dictionary or corpus. The data uses the upstream one-scalar-per-reading model:
 
-## Retained reports
+- Sixteen primary entries have readings of 1–16 repeated `ㄧ`, text of 1–16 repeated `一`, and score 1,000,000.
+- The one-syllable reading has 255 additional scalar candidates. Distinct decreasing scores fix their order without assuming an upstream equal-score tie rule.
+- Fifteen other singleton readings allow the filler syllables to complete independently. Unknown syllables are not silently converted to raw composition.
+- Filler entries have five readings, five scalars and at most 256 candidates per reading. Distinct scores fix each group's selection order.
+- The replay tests 64 syllables, overflow rejection, all 256 candidates, index 255 on the tail page, editing, cancellation, one-time commit, and first/last filler groups.
 
-- [10,000 entries](synthetic-10000.json)
-- [100,000 entries](synthetic-100000.json)
-- [250,000 entries](synthetic-250000.json)
+Expectations are authored from the input contract, not copied from engine output. Every profile reaches 16 readings per phrase and 256 candidates per reading. All remain below input and event-count limits. This highly ambiguous distribution is a stress case, not a natural-language model.
 
-Each small report retains both benchmark runs, generated/canonical lexicon hashes, corpus and replay-output hashes, actual distribution, source snapshot, generator and release-CLI hashes, actual `rustc --version --verbose`, Cargo version, OS, and CPU. The CLI's embedded compiler field remains unavailable; the wrapper records the actual compiler used for the build instead of changing runtime reporting.
+## Default dictionary with a small synthetic corpus
 
-The source snapshot uses sorted repository-relative paths, then `path + NUL + contents + NUL`, hashed with SHA-256. Inputs are `.gitattributes`, Cargo manifests/lock, the toolchain file, `crates/`, `platforms/`, `fixtures/`, `.github/`, `scripts/`, and `data/cns11643/`; ignored outputs and `docs/` are excluded. Fixture README files remain in the hashed `fixtures/` inputs. `base_commit` identifies HEAD before the source changes were committed. The snapshot identifies the tested content; it is not a signed provenance claim. The CNS files identify the rebased CLI test inputs, not the timed lexicon: all three benchmark lexicons remain synthetic.
+[Default-data report](libchewing-default.json) uses the actual 160,440-entry upstream package and the retained [eight-event corpus](libchewing-default-corpus.jsonl). The public case composes `你好`, commits once, then checks a second Enter. It is **not a representative corpus**.
 
-Each run records lexicon initialization, nearest-rank p50/p95/p99 key latency, and a process RSS sample after the benchmark. Latency includes `Engine::handle` and its complete returned snapshot. It excludes fixture I/O, event cloning, expectation checks, output serialization/destruction, per-repetition initialization, and native UI. There is no warmup. Repetitions start with a fresh engine. Timing values can differ between runs. The recorded runs used a shared development host during other validation work, without CPU affinity or frequency control. RSS is not peak memory or allocation cost.
+```bash
+cargo run --release -p ime-cli --locked -- build-assets data/libchewing/source target/default-benchmark-assets
+cargo run --release -p ime-cli --locked -- benchmark target/default-benchmark-assets docs/benchmarks/libchewing-default-corpus.jsonl 100
+```
 
-The older [39-entry fixture report](fixture-64.json) remains historical evidence, not a baseline for product performance. Current platform evidence and unresolved handoff are in the [validation register](../native-validation.md).
+The two recorded runs have handle p95 0.0252 / 0.0240 ms. Memory asset validation takes 34.8 / 36.5 ms; `Engine::new` after shared assets takes 12.7 / 12.2 µs. These values do not measure full native context creation: C ABI constructors also validate and copy their supplied dictionary bytes. Default data and synthetic stress are reported separately.
+
+## Identity and method
+
+Reports retain asset/source/corpus/output hashes, both benchmark runs, generator/CLI hashes, source snapshot, actual Rust/Cargo versions, OS and CPU. Recorded host: Linux x86_64, WSL2 kernel 6.18.33.2, AMD Ryzen 9 7950X3D, Rust 1.92.0. The compiler field inside CLI output is unavailable; the wrapper records the actual compiler separately.
+
+Source snapshots hash sorted relative `path + NUL + bytes + NUL`. The explicit set is `.gitattributes`, Cargo manifests/lock, the toolchain file, `crates/`, `platforms/`, `fixtures/`, `.github/`, `scripts/`, `data/cns11643/` and `data/libchewing/`. Ignored outputs and `docs/` are excluded. `base_commit` is HEAD before implementation commit; the snapshot identifies working-tree content, not signed provenance.
+
+`per_key_latency` measures `Engine::handle` and its complete snapshot. `probe_latency` measures the read-only probe immediately before each key; it can warm caches. Timers exclude file I/O, event cloning, expectation checks, output serialization/destruction and per-repetition initialization. Every repetition starts with a new Engine; there is no separate warmup. The legacy `lexicon_parse_ns` field now means in-memory asset validation, not TSV parsing. The host was shared and had no CPU affinity or frequency control.
+
+The older [fixture-64 report](fixture-64.json) is historical self-engine evidence, not a comparable product baseline. Pre-migration synthetic reports remain in Git history at `46da8ac`. Current checks and unresolved native/corpus/release gates are in the [validation register](../native-validation.md).

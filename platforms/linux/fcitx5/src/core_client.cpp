@@ -7,7 +7,7 @@
 #include <stdexcept>
 
 namespace bopomofo {
-static_assert(BPM_ABI_VERSION == 1, "Update the adapter for this C ABI version");
+static_assert(BPM_ABI_VERSION == 2, "Update the adapter for this C ABI version");
 namespace {
 [[noreturn]] void invalid() { throw std::runtime_error("Invalid core contract"); }
 void fields(const Json &j, std::initializer_list<const char *> keys) {
@@ -45,11 +45,11 @@ struct Buffer {
 };
 } // namespace
 
-std::string readLexicon(const std::string &path) {
+std::string readAsset(const std::string &path, std::size_t maximum) {
     std::ifstream input(path, std::ios::binary | std::ios::ate);
     if (!input) { throw std::runtime_error("Lexicon unavailable"); }
     const auto length = input.tellg();
-    if (length <= 0 || length > static_cast<std::streamoff>(MaxLexiconBytes)) {
+    if (length <= 0 || length > static_cast<std::streamoff>(maximum)) {
         throw std::runtime_error("Invalid lexicon size");
     }
     std::string result(static_cast<std::size_t>(length), '\0');
@@ -60,34 +60,18 @@ std::string readLexicon(const std::string &path) {
     return result;
 }
 
-std::string readChecksum(const std::string &path) {
-    std::ifstream input(path, std::ios::binary);
-    char bytes[66]{};
-    if (!input) { throw std::runtime_error("Lexicon manifest unavailable"); }
-    input.read(bytes, sizeof(bytes));
-    if (input.bad() || input.gcount() != 65 || bytes[64] != '\n') {
-        throw std::runtime_error("Invalid lexicon manifest");
-    }
-    std::string result(bytes, 64);
-    for (const auto byte : result) {
-        if (!((byte >= '0' && byte <= '9') || (byte >= 'a' && byte <= 'f'))) {
-            throw std::runtime_error("Invalid lexicon manifest");
-        }
-    }
-    return result;
-}
-
-void verifyLexicon(const std::string &lexicon, const std::string &sha256) {
+std::string readManifest(const std::string &path) { return readAsset(path, 16 * 1024); }
+void verifyAssets(const VerifiedAssets &assets) {
     if (bpm_abi_version() != BPM_ABI_VERSION) { throw std::runtime_error("C ABI version mismatch"); }
-    if (bpm_lexicon_verify(reinterpret_cast<const uint8_t *>(lexicon.data()), lexicon.size(),
-            reinterpret_cast<const uint8_t *>(sha256.data()), sha256.size()) != BPM_OK) {
-        throw std::runtime_error("Lexicon checksum failed");
+    const auto descriptor = assets.descriptor();
+    if (bpm_assets_verify(reinterpret_cast<const uint8_t *>(assets.manifest.data()), assets.manifest.size(), &descriptor, 1) != BPM_OK) {
+        throw std::runtime_error("Asset integrity failed");
     }
 }
-std::string loadVerifiedLexicon(const std::string &path, const std::string &checksumPath) {
-    auto lexicon = readLexicon(path);
-    verifyLexicon(lexicon, readChecksum(checksumPath));
-    return lexicon;
+VerifiedAssets loadVerifiedAssets(const std::string &path, const std::string &manifestPath) {
+    VerifiedAssets assets{readAsset(path), readManifest(manifestPath)};
+    verifyAssets(assets);
+    return assets;
 }
 
 Snapshot decodeSnapshot(const Json &j) {
@@ -138,11 +122,12 @@ Json keyEvent(const std::string &key) {
             {"meta", false}, {"shift", false}, {"repeat", false}, {"release", false}};
 }
 
-CoreClient::CoreClient(const std::string &lexicon) {
+CoreClient::CoreClient(const VerifiedAssets &assets) {
     if (bpm_abi_version() != BPM_ABI_VERSION) { throw std::runtime_error("C ABI version mismatch"); }
     BpmEngine *raw = nullptr;
-    const auto status = bpm_engine_new(reinterpret_cast<const uint8_t *>(lexicon.data()),
-                                       lexicon.size(), &raw);
+    const auto descriptor = assets.descriptor();
+    const auto status = bpm_engine_new_v2(reinterpret_cast<const uint8_t *>(assets.manifest.data()),
+                                       assets.manifest.size(), &descriptor, 1, &raw);
     engine_.reset(raw);
     if (status != BPM_OK || !engine_) { throw std::runtime_error("Core initialization failed"); }
     // Validate the initial output before exposing the engine to a host.

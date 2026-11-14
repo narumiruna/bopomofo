@@ -1,6 +1,6 @@
 use super::{ModuleGuard, com, edit, key, module_path};
 use crate::session::{Session, Ticket, boundary};
-use ime_core::{Event, KeyEvent, Lexicon, Output};
+use ime_core::{Assets, Event, KeyEvent, Output};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
@@ -184,7 +184,7 @@ struct Activation {
     cookie: u32,
     client: u32,
     ui: ITfUIElementMgr,
-    lexicon: Arc<Lexicon>,
+    lexicon: Arc<Assets>,
     contexts: HashMap<usize, Rc<Context>>,
     focus: Option<usize>,
 }
@@ -463,7 +463,7 @@ impl ITfTextInputProcessor_Impl for Service_Impl {
     }
 }
 
-fn load_lexicon() -> Result<Arc<Lexicon>> {
+fn load_lexicon() -> Result<Arc<Assets>> {
     let directory = module_path()?
         .parent()
         .ok_or_else(|| Error::from(E_FAIL))?

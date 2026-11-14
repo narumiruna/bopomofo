@@ -2,7 +2,7 @@
 
 The development bundle builds with Command Line Tools (CLT). Native IME behavior is **unverified**. No installation, registration, input-source selection, or native UI test was performed.
 
-This host implements the P1 bundle spike and the P4 adapter. It uses the shared Rust engine, not a second input engine. The default bundle uses the CNS11643 Taiwan common/less-common character supplement and five self-authored phrases. This is not a production phrase lexicon.
+This host implements the P1 bundle spike and the P4 adapter. It uses the shared Rust engine, not a second input engine. The default bundle uses the pinned libchewing word/phrase data. The selected data grant is recorded separately from the engine license. This does not establish production reading quality.
 
 ## Build and checks
 
@@ -13,26 +13,26 @@ bash platforms/macos/scripts/build.sh
 bash platforms/macos/scripts/test.sh
 ```
 
-To use a different approved lexicon:
+To build an approved authoring profile, pass its TSV file or the pinned upstream source directory:
 
 ```bash
 bash platforms/macos/scripts/build.sh /absolute/path/to/approved-lexicon.tsv
 ```
 
-Confirm its source and license before use. The default is `data/cns11643/lexicon.tsv`; see the [CNS11643 guide](../data/cns11643/README.md) and [data sources](../data/SOURCES.md). The default data has 13,052 characters, 16,496 character-reading pairs, and five self-authored phrases. Scores are artificial, not measured phrase frequencies.
+Confirm its source and license before use. The default is `data/libchewing/source`, with 160,440 merged entries. See [data sources](../data/SOURCES.md#libchewing-default-data). CNS, baseline, quality and Unicode remain separate test profiles. Do not use their expectations with the default package.
 
-The build includes the default data attribution and OGDL-Taiwan-1.0 text as `Lexicon-NOTICE.txt` and `Lexicon-LICENSE.txt`. It also includes `Project-LICENSE.txt`. CNS notices are included only when the selected bytes match the default CNS lexicon. A different external lexicon still needs its own approved notices before distribution.
+The build creates `dictionary.dat` and `assets.json`. It also copies separate project, engine and data licenses, engine authors, and engine/data notices. The selected CNS bytes retain OGDL attribution and the self-authored seed notice; unknown caller data is not relabeled as AGPL. Future binary distribution still needs LGPL source and static-link relinking review.
 
 - The build uses `xcrun --sdk macosx swiftc` and the CLT SDK. It does not use `xcodebuild`.
 - Rust builds `target/release/libime_ffi.a`. Swift imports `crates/ime-ffi/include/bopomofo.h` as its bridging header.
-- A standalone Foundation program checks the header/library ABI version, verifies the lexicon SHA-256 against `lexicon.sha256`, loads the lexicon, and decodes a Rust JSON snapshot before the host links.
+- A standalone Foundation program checks the header/library ABI version, verifies the v2 asset descriptors and manifest, loads the memory dictionary, and decodes a Rust JSON snapshot before the host links.
 - The build produces `platforms/macos/build/Bopomofo Development.app` for the current host architecture.
 - The deployment target is macOS 13.0. This is a compiler setting, not evidence of macOS 13 support.
 - The build validates `Info.plist`, applies an offline ad-hoc signature, and verifies the bundle signature. It does not launch the IME.
-- `platforms/macos/build/build-evidence.txt` records the architecture, SDK, compiler, and executable/lexicon SHA-256 values. Build files are ignored by Git.
+- `platforms/macos/build/build-evidence.txt` records the architecture, SDK, compiler, and executable/dictionary/manifest SHA-256 values. Build files are ignored by Git.
 - Signing with a distribution identity, notarization, universal builds, and publication are outside this task.
 
-`test.sh` runs noninteractive Swift logic tests, builds a fixture bundle and saves its checksum, then rebuilds the default CNS bundle. Swift-to-C-ABI tests use both datasets independently. The final bundle is CNS, not the fixture or Unicode bundle needed by the other native cases. The script also checks Bash syntax and runs management-script dry runs. Test executables use Foundation only. They do not create an `IMKServer`, open native windows, or register an input source.
+`test.sh` runs noninteractive Swift logic tests, stages separate baseline, CNS and Unicode assets, then leaves a default libchewing-data bundle. Swift-to-C-ABI tests exercise the separate profiles. The final default bundle is not the fixture, CNS or Unicode bundle required by those native cases. The script also checks Bash syntax and runs management-script dry runs. Test executables use Foundation only. They do not create an `IMKServer`, open native windows, or register an input source.
 
 ### Evidence
 
@@ -135,7 +135,7 @@ Whether InputMethodKit retains the custom candidate attributes in each target ap
 
 ### Data and privacy
 
-The process reads `Contents/Resources/lexicon.tsv` and `lexicon.sha256` once during initialization, before key callbacks. The manifest contains exactly 64 ASCII hex digits and one newline. `bpm_lexicon_verify` must succeed before the host can construct a `VerifiedLexicon` or call `bpm_engine_new`. Missing, malformed, or mismatched manifests fail closed with a text-free error type. Contexts initialize engines from that verified in-memory data. Key processing does not read files or use network services.
+The process reads bounded `Contents/Resources/dictionary.dat` and `assets.json` once before key callbacks. Header/library ABI version must be 2. `bpm_assets_verify` must succeed before `VerifiedAssets` can call `bpm_engine_new_v2`. The manifest pins the engine, builder, source identity, filename, size and SHA-256. Missing, malformed, mixed-version or checksum-invalid data fails closed with a text-free error type. Contexts initialize from verified memory. Learning, user dictionary persistence and upstream logging are disabled. Key processing does not read files or use network services.
 
 The build generates the manifest from the selected lexicon. This check detects mismatched artifact bytes; it does not establish authenticity. Replacing both data and manifest can produce a new matching pair. The local ad-hoc signature does not establish developer provenance or distribution trust.
 
@@ -163,7 +163,7 @@ The script uses only these current-user paths:
 
 Missing parent directories can be created under `~/Library`: `Input Methods`, `Application Support`, `Application Support/Bopomofo Development`, and its `Backups` directory. No other user's directory or system-wide installation directory is used.
 
-The source is the local build bundle. The script rejects root execution, symlink path components, symlinks inside the bundle, unexpected identifiers, incomplete bundles, lexicon checksum mismatches, and invalid signatures. `install` refuses any existing destination. `update`, `uninstall`, and `restore` refuse an unrelated destination. A corrupt bundle is also refused; it requires an authorized manual inspection instead of a broad cleanup command.
+The source is the local build bundle. The script rejects root execution, symlink path components, symlinks inside the bundle, unexpected identifiers, incomplete bundles, asset/manifest mismatches, missing notices, and invalid signatures. `install` refuses any existing destination. `update`, `uninstall`, and `restore` refuse an unrelated destination. A corrupt bundle is also refused; it requires an authorized manual inspection instead of a broad cleanup command.
 
 After authorization, append `--apply` to the required action. The script copies and verifies the replacement before moving the installed version to its backup. If the final installation move fails, it tries to restore that backup. Uninstall preserves the removed bundle as a backup rather than deleting it.
 
@@ -186,7 +186,7 @@ Use the actual backup name; the example is not an existing artifact. Restore doe
 
 ## Authorized native smoke test
 
-No row below is passed. Record the OS/build, CPU architecture, app/version, executable and lexicon hashes from `build-evidence.txt`, display arrangement, steps, and outcome in the [native-validation record](native-validation.md#native-result-record). Verify the installed bundle's executable and lexicon hashes against the selected build before each case set. Do not record private input content. Use only the public test text below.
+No row below is passed. Record the OS/build, CPU architecture, app/version, executable, dictionary and manifest hashes from `build-evidence.txt`, display arrangement, steps, and outcome in the [native-validation record](native-validation.md#native-result-record). Verify the installed bundle's executable, dictionary and manifest hashes against the selected build before each case set. Do not record private input content. Use only the public test text below.
 
 The fixture, CNS, and Unicode case sets require separate builds. `build.sh` always replaces the same `platforms/macos/build/Bopomofo Development.app` and `build-evidence.txt`. Before each rebuild, preserve the previous bundle and its evidence in a separate local directory. All variants use the same development identity; do not install them side by side. A rebuild does not update an installed bundle. Each installed-bundle update, registration, activation, or settings change needs explicit scoped authorization.
 
@@ -198,7 +198,7 @@ Build the 39-entry fixture bundle before steps 1–7:
 bash platforms/macos/scripts/build.sh fixtures/lexicon.tsv
 ```
 
-Expected lexicon SHA-256: `c54ced5e1e44472337f9bb5c5b8fe41e7a692a33dbfa8d360991704888f11dcd`. This is the original fixture file copied by `build.sh`, not a `build-lexicon` normalized export. Do not use the default CNS bundle for these `basic.jsonl` expectations.
+Baseline source SHA-256 is `c54ced5e1e44472337f9bb5c5b8fe41e7a692a33dbfa8d360991704888f11dcd`. It is compiled, not copied as runtime TSV. Record the generated dictionary and manifest hashes. Do not use the default libchewing-data bundle for these `basic.jsonl` expectations.
 
 1. Obtain explicit installation/update and activation authorization for this fixture bundle. Inspect installation separately, then manually add/enable `Bopomofo Development` in Input Sources. Do not assume a successful bundle build proves it loads.
 2. In a new document, type `1`, `8`, then Space. Expected: marked `八`, no commit yet. Press Enter. Expected: one `八`, no marked text. A second Enter must reach the app and must not insert a second `八`.
@@ -214,15 +214,15 @@ Expected lexicon SHA-256: `c54ced5e1e44472337f9bb5c5b8fe41e7a692a33dbfa8d3609917
    - Check repeat and key-up behavior. Shortcuts such as Command+A/C/V must pass through unchanged; the IME must not access the clipboard itself.
 7. Start a composition in an ordinary field, then focus a secure/password field and a field that disables IME. Expected: the old mark and panel close, no old text is committed, and the host restriction remains in force. Return to an ordinary field: the new composition must be empty. Do not use a fallback input path.
 
-### CNS default bundle cases
+### CNS supplement bundle cases
 
-Preserve the fixture bundle and its evidence, then build the default CNS bundle separately:
+Preserve the previous bundle and evidence, then build CNS separately:
 
 ```bash
-bash platforms/macos/scripts/build.sh
+bash platforms/macos/scripts/build.sh data/cns11643/lexicon.tsv
 ```
 
-Expected lexicon SHA-256: `f279ff2faa8bc40814e300253cda97c162003a0b6650fdfa0484f4075d0b300a`. Obtain scoped installation/update and activation authorization for this build, then verify the installed hashes. Neither the fixture bundle nor the Unicode bundle can validate these cases. Use the public [`CNS replay`](../fixtures/cns11643.jsonl) as the fixed case reference.
+CNS source SHA-256 remains `f279ff2faa8bc40814e300253cda97c162003a0b6650fdfa0484f4075d0b300a`. Record generated asset hashes. Obtain scoped installation/update and activation authorization for this build, then verify the installed hashes. Neither the fixture bundle nor the Unicode bundle can validate these cases. Use the public [`CNS replay`](../fixtures/cns11643.jsonl) as the fixed case reference.
 
 1. In a new composition, type `j i 3`. Expected: marked `我`. Press Escape to cancel without commit. Repeat with `e j i 6`: expected marked `國`, then cancel.
 2. Type `u 4 Down`. Expected: 154 candidates in total, with nine per full page. Press Page Down 17 times from page 0. Expected: page 17 contains only `齸`, at absolute index 153. Press `1`: expected marked `齸`, no commit. Enter must commit it once; a second Enter must reach the app without another IME commit.
@@ -238,9 +238,9 @@ Preserve the CNS bundle and its evidence, then build a separate Unicode test bun
 bash platforms/macos/scripts/build.sh fixtures/unicode/lexicon.tsv
 ```
 
-Expected lexicon SHA-256: `fb064cc2a15d749eca43085379c8bdc7eb0de6e99481e1377fd0d7e47056b7c4`. This build does not authorize installation. Use the self-authored [`Unicode replay`](../fixtures/unicode/cases.jsonl) only after scoped installation/update and activation approval and installed-hash verification. Record both the Unicode lexicon hash and the rebuilt executable hash; fixture and CNS hashes do not identify this bundle.
+This profile has one scalar per reading and a four-reading Unicode phrase. Record its current source, dictionary and manifest hashes; the historical one-reading hash no longer applies. This build does not authorize installation. Use the self-authored [`Unicode replay`](../fixtures/unicode/cases.jsonl) only after scoped installation/update and activation approval and installed-hash verification. Record both the Unicode lexicon hash and the rebuilt executable hash; fixture and CNS hashes do not identify this bundle.
 
-1. Type `u Space Home End Down 1 Enter Enter`. Expected: marked `𠀀é😀`, Home at UTF-16 offset 0, End and selected text at offset 6, one commit, then no repeated commit. The core cursor is 11 UTF-8 bytes; neither 11 bytes nor four Unicode scalars is the native range length. Do not split a surrogate pair or the combining sequence.
+1. Type `u Space` four times, then `Home End Home Down 1 End Enter Enter`. Expected: marked `𠀀é😀`, Home at UTF-16 offset 0, End at offset 6, one commit, then no repeated commit. Selection at Home preserves cursor 0; the explicit End moves it to 6. The core cursor is 11 UTF-8 bytes; neither 11 bytes nor four Unicode scalars is the native range length. Do not split a surrogate pair or the combining sequence.
 2. Repeat `u Space Escape`. Expected: no marked text, candidates, or commit.
 
 ### Pending application and display matrix

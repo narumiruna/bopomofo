@@ -59,13 +59,23 @@ validate_bundle() {
     [[ $(plist_value "$app" TISInputSourceID) == "$SOURCE_ID" ]] || fail 'unrelated input source'
     [[ $(plist_value "$app" InputMethodConnectionName) == "$CONNECTION" ]] || fail 'unexpected connection'
     [[ $(plist_value "$app" InputMethodServerControllerClass) == BopomofoInputController ]] || fail 'unexpected controller'
-    [[ -x "$app/Contents/MacOS/BopomofoDevelopment" && -f "$app/Contents/Resources/lexicon.tsv" &&
-       -f "$app/Contents/Resources/lexicon.sha256" ]] || fail 'incomplete bundle'
-    [[ $(wc -c < "$app/Contents/Resources/lexicon.sha256") -eq 65 ]] || fail 'invalid lexicon manifest'
-    local actual expected
-    actual=$(shasum -a 256 "$app/Contents/Resources/lexicon.tsv" | awk '{print $1}')
-    expected=$(tr '[:upper:]' '[:lower:]' < "$app/Contents/Resources/lexicon.sha256")
-    [[ "$expected" == "$actual" ]] || fail 'lexicon checksum mismatch'
+    local resources="$app/Contents/Resources" manifest="$app/Contents/Resources/assets.json"
+    [[ -x "$app/Contents/MacOS/BopomofoDevelopment" && -f "$resources/dictionary.dat" &&
+       -f "$manifest" ]] || fail 'incomplete bundle'
+    [[ $(wc -c < "$manifest") -le 16384 && $(wc -c < "$resources/dictionary.dat") -le 33554432 ]] || fail 'asset size limit'
+    [[ $(plutil -extract format raw -o - "$manifest") == bopomofo-assets-v1 &&
+       $(plutil -extract engine raw -o - "$manifest") == chewing-0.13.1 &&
+       $(plutil -extract builder raw -o - "$manifest") == bopomofo-assets-v1 &&
+       $(plutil -extract files.0.name raw -o - "$manifest") == dictionary.dat ]] || fail 'incompatible asset manifest'
+    if plutil -extract files.1 json -o - "$manifest" >/dev/null 2>&1; then fail 'unexpected asset' ; fi
+    local actual expected length
+    actual=$(shasum -a 256 "$resources/dictionary.dat" | awk '{print $1}')
+    expected=$(plutil -extract files.0.sha256 raw -o - "$manifest")
+    length=$(plutil -extract files.0.bytes raw -o - "$manifest")
+    [[ "$expected" == "$actual" && "$length" -eq $(wc -c < "$resources/dictionary.dat") ]] || fail 'asset checksum mismatch'
+    for name in Project-LICENSE.txt Engine-LICENSE.txt Engine-AUTHORS.txt Engine-NOTICE.txt Data-LICENSE.txt Data-NOTICE.txt; do
+        [[ -s "$resources/$name" ]] || fail 'missing license or notice'
+    done
     /usr/bin/codesign --verify --strict "$app" >/dev/null 2>&1 || fail 'invalid bundle signature'
 }
 
