@@ -98,9 +98,9 @@ The base Ubuntu image is pinned by digest in `ci/Dockerfile`. The build download
 
 ## Current checks and limits
 
-CMake registers **11 CTests**: ABI v2, rejection by a v1 host, baseline adapter contracts, the independent known-gap reproducer, CNS replay, wrong-profile rejection, quality replay, Unicode replay, default-data validation, and two management dry runs.
+CMake registers **12 CTests**: ABI v2, rejection by a v1 host, baseline adapter contracts, the independent known-gap reproducer, CNS replay, wrong-profile rejection, quality replay, Unicode replay, default-data validation, custom-source incremental rebuild, and two management dry runs.
 
-All four replay profiles use their own compiled assets. The baseline has nine files / 361 events; CNS has 81, quality 17 and Unicode 19. The 478 total events retain manual expectations. `--replay-only` takes dictionary and manifest paths followed by matching JSONL files; it does not generate expected output.
+All four replay profiles use their own compiled assets. The baseline has nine files / 367 events; CNS has 81, quality 17 and Unicode 19. The 484 total events retain manual expectations. `--replay-only` takes dictionary and manifest paths followed by matching JSONL files; it does not generate expected output.
 
 ```bash
 target/fcitx5/bopomofo_contract --replay-only \
@@ -110,7 +110,7 @@ bash scripts/check-engine-privacy.sh
 
 The privacy script requires Cargo, jq and strace. It checks initialization, events, probe, selection, cancellation and drop between fixed markers with an empty controlled HOME. No traced file/network/read/write operation is allowed in that region. The input is synthetic; this is not a trace of desktop typing.
 
-Clean Release and Debug C++ ASan/UBSan builds must run the same 11 CTests. Leak detection and halt-on-error are enabled. The independent known-gap case also runs alone. **Rust and system SDK libraries are not sanitizer-instrumented.** See current hashes and results in the validation register.
+Clean Release and Debug C++ ASan/UBSan builds must run the same 12 CTests. Leak detection and halt-on-error are enabled. The independent known-gap case also runs alone. **Rust and system SDK libraries are not sanitizer-instrumented.** See current hashes and results in the validation register.
 
 The mocks use real Fcitx APIs but do not exercise a daemon, DBus transport, compositor, native loader or application. Capability tests call the registered watcher directly because the standalone manager has no Instance event bus. Exit 0 from the known-gap reproducer means the gap still occurs, not that stale rendered clicks are safe.
 

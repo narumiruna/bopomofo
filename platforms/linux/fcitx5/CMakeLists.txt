@@ -25,6 +25,12 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${RUST_INPUTS}
     "${REPOSITORY_ROOT}/fixtures/lexicon.tsv" "${REPOSITORY_ROOT}/data/cns11643/lexicon.tsv"
     "${REPOSITORY_ROOT}/fixtures/lexicon-quality/lexicon.tsv" "${REPOSITORY_ROOT}/fixtures/unicode/lexicon.tsv"
     "${REPOSITORY_ROOT}/data/cns11643/NOTICE.txt" "${REPOSITORY_ROOT}/data/cns11643/LICENSE.txt")
+if(IS_DIRECTORY "${BOPOMOFO_ASSET_SOURCE}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${BOPOMOFO_ASSET_SOURCE}/word.csv" "${BOPOMOFO_ASSET_SOURCE}/tsi.csv")
+else()
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${BOPOMOFO_ASSET_SOURCE}")
+endif()
 # Build data only in this build directory. No native installation occurs.
 execute_process(COMMAND "${CARGO_EXECUTABLE}" build --locked --release -p ime-cli
     --target-dir "${CMAKE_BINARY_DIR}/rust" WORKING_DIRECTORY "${REPOSITORY_ROOT}"
@@ -111,6 +117,7 @@ if(BUILD_TESTING)
             "${CMAKE_BINARY_DIR}/${profile}-assets/dictionary.dat" "${CMAKE_BINARY_DIR}/${profile}-assets/assets.json" "${cases}")
     endforeach()
     add_test(NAME default_assets COMMAND "${CMAKE_BINARY_DIR}/rust/release/ime-cli" validate-assets "${CMAKE_BINARY_DIR}/assets")
+    add_test(NAME custom_source_rebuild COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/ci/test-source-rebuild.sh" "${REPOSITORY_ROOT}")
     add_test(NAME install_dry_run COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install.sh" "${CMAKE_BINARY_DIR}")
     add_test(NAME uninstall_dry_run COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/scripts/uninstall.sh" "${CMAKE_BINARY_DIR}")
 endif()

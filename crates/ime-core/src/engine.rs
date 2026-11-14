@@ -83,7 +83,7 @@ impl Modifiers {
                 };
             }
         }
-        if key.release {
+        if key.release || key.ctrl || key.alt || key.meta {
             return Route::Pass;
         }
         if key.key == "caps_lock" {
@@ -93,7 +93,7 @@ impl Modifiers {
                 Route::Toggle
             };
         }
-        if key.ctrl || key.alt || key.meta || mode == InputMode::Latin {
+        if mode == InputMode::Latin {
             return Route::Pass;
         }
         if selecting || phonetic(&key.key) || (occupied && special(&key.key)) {

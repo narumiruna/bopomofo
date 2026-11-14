@@ -175,6 +175,21 @@ fn shortcuts_modes_and_shift_chords() {
             meta: true,
             ..Default::default()
         },
+        KeyEvent {
+            key: "caps_lock".into(),
+            ctrl: true,
+            ..Default::default()
+        },
+        KeyEvent {
+            key: "caps_lock".into(),
+            alt: true,
+            ..Default::default()
+        },
+        KeyEvent {
+            key: "caps_lock".into(),
+            meta: true,
+            ..Default::default()
+        },
     ] {
         assert!(!e.handle(Event::Key(k)).consumed);
         assert_eq!(e.snapshot(), before);

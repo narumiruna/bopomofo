@@ -99,7 +99,7 @@ Engine dependency 及其內嵌資料的權利查核通過後，上游配套詞�
 
 ### P4 — 更新三平台 adapter 與 package
 
-- [x] 修改 macOS `CoreEngine.swift`、resource loader、build／test／manage scripts 與 Swift／FFI tests，使用 v2 assets、manifest 與 engine／data notices，保留 marked text、candidate token、context 與 commit 邊界；本機驗收為可檢查的 source／fixture 對照與 Bash syntax，`scripts/test.sh` 的 SDK build／執行交由有 macOS runner 的 External Handoff，不標為已通過。 證據：Source／fixture對照、Bash syntax與 resource rules已檢查；SDK test仍為明列handoff，待本輪 CI。
+- [ ] 修改 macOS `CoreEngine.swift`、resource loader、build／test／manage scripts 與 Swift／FFI tests，使用 v2 assets、manifest 與 engine／data notices，保留 marked text、candidate token、context 與 commit 邊界；本機驗收為可檢查的 source／fixture 對照與 Bash syntax，`scripts/test.sh` 的 SDK build／執行交由有 macOS runner 的 External Handoff，不標為已通過。 證據：Source／fixture對照、Bash syntax與 resource rules已檢查；SDK test仍為明列handoff，待本輪 CI。 重新開啟：review fixes 後須重跑；macOS main.swift 舊 resource reference 已修正，待 SDK CI。
 - [x] 修改 Windows `resource.rs`、`session.rs`、TSF initialization、`Build-Test.ps1` 與 DLL tests，替換 `Arc<Lexicon>` 與單檔 TSV package；證據為 Linux portable tests、三個 MSVC target 的 `cargo check`／Clippy 及 script／資源契約檢查。真正 MSVC link／DLL load／runtime tests 須在對應 native runner 另行取得證據。 證據：Portable 16、三 target check／Clippy及 PowerShell AST 5＋preflight negatives 5 passed；native CI另記。
 - [x] 修改 Fcitx5 `core_client`、CMake、config、ABI tests、resource／install dry-run scripts 與 headless contracts，使用同一 asset profile 與 v2 ABI；證據為乾淨 Docker Release build、CTest、錯誤 profile negative test、管理 dry-run 與 C++ ASan／UBSan。保留 stale-rendered-index reproducer，不把其成功重現標成安全修正；未 instrumentation 的 Rust／system libraries 仍分別註明。 證據：Fresh Release 11/11、C++ ASan／UBSan 11/11與gap-only1/1；Rust/system libraries未instrumented。
 
@@ -111,7 +111,7 @@ Engine dependency 及其內嵌資料的權利查核通過後，上游配套詞�
 ### P6 — 完成驗證與保留交接
 
 - [x] 執行全部可在本機安全準備的 quality gates、四組 replay、privacy／resource negative tests、FFI 與 adapter portable／headless tests；將逐層結果及 source／asset／binary hashes 保存於 `docs/native-validation.md`，所有 change-caused failures 均須修正後重跑。 證據：Final Rust 74＋74、FFI6、Linux11/11、C++ASan11/11、privacy2profiles及cross-target6commands；register保存hashes。
-- [x] 更新 release-mode benchmark，量測 asset 初始化、每個 context 建立成本、handle／probe 延遲、p50／p95／p99 與記憶體；證據為固定 source／asset／corpus／環境的可重跑 reports。Synthetic 與正式詞庫分開標記；無有權使用的代表性 corpus 時，不宣稱已符合產品 p95 < 5 ms 或優於舊引擎。 證據：三個synthetic profiles各兩次100repetitions與default-data8-event corpus reports；p95>5ms風險明列，不宣稱產品達標。
+- [ ] 更新 release-mode benchmark，量測 asset 初始化、每個 context 建立成本、handle／probe 延遲、p50／p95／p99 與記憶體；證據為固定 source／asset／corpus／環境的可重跑 reports。Synthetic 與正式詞庫分開標記；無有權使用的代表性 corpus 時，不宣稱已符合產品 p95 < 5 ms 或優於舊引擎。 證據：三個synthetic profiles各兩次100repetitions與default-data8-event corpus reports；p95>5ms風險明列，不宣稱產品達標。 重新開啟：review fixes 後須重跑；macOS main.swift 舊 resource reference 已修正，待 SDK CI。
 - [x] 同步 README、architecture、input spec、data sources、fixture notes、三平台與 benchmark 文件，移除把自研設計當成現行實作的描述；證據為連結／指令／path／engine version／manifest schema 一致性檢查與 diff review。 證據：已逐檔review、actionlint／Bash／local file links／staged whitespace checks；保留原樣upstream AUTHORS。
 - [x] 將尚未完成的 native build、installed IME、資料／corpus、Fcitx correctness 與 release 限制及可執行操作步驟保留在 `docs/native-validation.md`／`data/SOURCES.md`，準備一致的 asset profiles 與 synthetic smoke cases；證據為每項責任角色、前提、未驗證行為及發布限制均有固定位置。 證據：Retained handoff已更新；所有installed／corpus／Fcitx／release gates保持open，matching profiles與manual smoke已準備。
 
