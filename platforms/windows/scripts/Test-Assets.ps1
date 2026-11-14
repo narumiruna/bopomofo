@@ -14,7 +14,21 @@ try {
     Assert-TsfAssets -Directory $Sandbox
     $ManifestPath = Join-Path $Sandbox 'assets.json'
     $Original = [IO.File]::ReadAllBytes($ManifestPath)
-    foreach ($Invalid in @('{}','not-json',('{"format":"wrong","engine":"chewing-0.13.1","builder":"bopomofo-assets-v1","files":[]}'))) {
+    $InvalidManifests = @('{}','not-json','{"format":"wrong","engine":"chewing-0.13.1","builder":"bopomofo-assets-v1","files":[]}')
+    foreach ($Name in @('data_version','source_sha256')) {
+        $Copy = [Text.Encoding]::UTF8.GetString($Original) | ConvertFrom-Json -Depth 16
+        $Copy.PSObject.Properties.Remove($Name)
+        $InvalidManifests += ($Copy | ConvertTo-Json -Depth 16)
+    }
+    foreach ($Version in @([string][char]0, (([char]0x4e00).ToString() * 43))) {
+        $Copy = [Text.Encoding]::UTF8.GetString($Original) | ConvertFrom-Json -Depth 16
+        $Copy.data_version = $Version
+        $InvalidManifests += ($Copy | ConvertTo-Json -Depth 16)
+    }
+    $Copy = [Text.Encoding]::UTF8.GetString($Original) | ConvertFrom-Json -Depth 16
+    $Copy.source_sha256 = 'A' * 64
+    $InvalidManifests += ($Copy | ConvertTo-Json -Depth 16)
+    foreach ($Invalid in $InvalidManifests) {
         [IO.File]::WriteAllText($ManifestPath, $Invalid)
         $Rejected = $false
         try { Assert-TsfAssets -Directory $Sandbox } catch { $Rejected = $true }
@@ -33,5 +47,5 @@ try {
     $Rejected = $false
     try { Assert-TsfAssets -Directory $Sandbox } catch { $Rejected = $true }
     if (-not $Rejected) { throw 'Missing data license was accepted.' }
-    Write-Output 'Asset preflight: valid package and five negative cases passed; no registration or settings changes.'
+    Write-Output 'Asset preflight: valid package and ten negative cases passed; no registration or settings changes.'
 } finally { Remove-Item -LiteralPath $Sandbox -Recurse -Force }

@@ -66,6 +66,12 @@ function Assert-TsfAssets([string]$Directory) {
         $Data.files[0].name -cne 'dictionary.dat' -or $Data.files[0].bytes -ne $Length) {
         throw 'Incompatible asset manifest.'
     }
+    if ($Data.data_version -isnot [string] -or [String]::IsNullOrEmpty($Data.data_version) -or
+        [Text.Encoding]::UTF8.GetByteCount($Data.data_version) -gt 128 -or
+        $Data.data_version -cmatch '[\x00-\x1f\x7f-\x9f]' -or
+        $Data.source_sha256 -isnot [string] -or $Data.source_sha256.Length -ne 64 -or $Data.source_sha256 -cnotmatch '^[0-9a-f]{64}$') {
+        throw 'Invalid source metadata.'
+    }
     $Actual = (Get-FileHash -LiteralPath $Dictionary -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($Data.files[0].sha256 -cnotmatch '^[0-9a-f]{64}$' -or $Data.files[0].sha256 -cne $Actual) {
         throw 'Asset checksum mismatch.'
