@@ -1,6 +1,6 @@
 # libchewing benchmark evidence
 
-All reports retain `scope: fixture_only`. No report establishes product performance, Taiwan reading quality, native UI behavior or application compatibility. **Synthetic handle p95 is 8.20–8.31 ms, above 5 ms.** The representative product p95 < 5 ms gate remains open; this migration does not claim a speed improvement.
+All reports retain `scope: fixture_only`. No report establishes product performance, Taiwan reading quality, native UI behavior or application compatibility. **Synthetic handle p95 is 8.17–8.27 ms, above 5 ms.** The representative product p95 < 5 ms gate remains open; this migration does not claim a speed improvement.
 
 ## Synthetic stress run
 
@@ -19,11 +19,11 @@ Generated TSV, JSONL, binary assets and raw reports remain in ignored `target/le
 
 | Entries | Generated TSV bytes | Exact readings | Filler readings | Replay events | Handle p95, two runs | Probe p95, two runs |
 | --- | --- | --- | --- | --- | --- | --- |
-| [10,000](synthetic-10000.json) | 390,268 | 69 | 38 | 331 | 8.252 / 8.203 ms | 1.423 / 1.342 µs |
-| [100,000](synthetic-100000.json) | 3,981,521 | 421 | 390 | 331 | 8.226 / 8.247 ms | 1.452 / 1.402 µs |
-| [250,000](synthetic-250000.json) | 9,970,799 | 1,007 | 976 | 332 | 8.311 / 8.274 ms | 1.382 / 1.262 µs |
+| [10,000](synthetic-10000.json) | 390,268 | 69 | 38 | 331 | 8.211 / 8.175 ms | 1.332 / 1.392 µs |
+| [100,000](synthetic-100000.json) | 3,981,521 | 421 | 390 | 331 | 8.168 / 8.187 ms | 1.173 / 1.142 µs |
+| [250,000](synthetic-250000.json) | 9,970,799 | 1,007 | 976 | 332 | 8.266 / 8.191 ms | 1.443 / 1.433 µs |
 
-RSS samples range from 7.15 to 12.89 MiB. They are not peak memory or allocation counts.
+RSS samples range from 7.24 to 12.77 MiB. They are not peak memory or allocation counts.
 
 ## Data and manual expectations
 
@@ -46,11 +46,13 @@ cargo run --release -p ime-cli --locked -- build-assets data/libchewing/source t
 cargo run --release -p ime-cli --locked -- benchmark target/default-benchmark-assets docs/benchmarks/libchewing-default-corpus.jsonl 100
 ```
 
-The two recorded runs have handle p95 0.0252 / 0.0240 ms. Memory asset validation takes 34.8 / 36.5 ms; `Engine::new` after shared assets takes 12.7 / 12.2 µs. These values do not measure full native context creation: C ABI constructors also validate and copy their supplied dictionary bytes. Default data and synthetic stress are reported separately.
+The two recorded runs have handle p95 0.0241 / 0.0241 ms. Memory asset validation takes 36.3 / 33.9 ms; `Engine::new` after shared assets takes 13.8 / 11.3 µs. These values do not measure full native context creation: C ABI constructors also validate and copy their supplied dictionary bytes. Default data and synthetic stress are reported separately.
 
 ## Identity and method
 
 Reports retain asset/source/corpus/output hashes, both benchmark runs, generator/CLI hashes, source snapshot, actual Rust/Cargo versions, OS and CPU. Recorded host: Linux x86_64, WSL2 kernel 6.18.33.2, AMD Ryzen 9 7950X3D, Rust 1.92.0. The compiler field inside CLI output is unavailable; the wrapper records the actual compiler separately.
+
+The six synthetic runs use snapshot `8615b4a076138d5243e391555d6fd6d49fd8210e7c9efa37c9217cdc14fe6958`. Final snapshot `3c1cf95698192e4ecb02b0243675a707533efa68f45ead4a9756156c9f91a089` differs only in two Windows preflight scripts. Runtime code, corpus and measured CLI bytes are identical; this delta was independently checked.
 
 Source snapshots hash sorted relative `path + NUL + bytes + NUL`. The explicit set is `.gitattributes`, Cargo manifests/lock, the toolchain file, `crates/`, `platforms/`, `fixtures/`, `.github/`, `scripts/`, `data/cns11643/` and `data/libchewing/`. Ignored outputs and `docs/` are excluded. `base_commit` is HEAD before implementation commit; the snapshot identifies working-tree content, not signed provenance.
 

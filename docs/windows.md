@@ -116,7 +116,7 @@ The script checks formatting, runs target Clippy, and builds debug and release D
 
 `.github/workflows/windows.yml` runs the target-specific native checks for x64 and x86 on `windows-2022`, and ARM64 on `windows-11-arm`. These standard runner labels are available for this public repository. The pre-migration run passed all three targets. Do not reuse that result for this source; retain each new run and target result separately. `.github/workflows/checks.yml` retains the Windows host build and workspace tests. Neither workflow registers, enables, or publishes the IME. Native build/test CI does not replace desktop smoke tests.
 
-All five current PowerShell scripts passed AST parsing in an isolated official PowerShell 7.5.0 Linux amd64 container. `Test-Assets.ps1` passed a valid package and five negative cases in temporary copies, including equal-length checksum corruption and a missing data license. It does not call the Windows registration context. `Register.ps1` and `Unregister.ps1` were not invoked. Registry changes, registration, activation, and desktop input remain unverified.
+All five current PowerShell scripts passed AST parsing in an isolated official PowerShell 7.5.0 Linux amd64 container. `Test-Assets.ps1` passed a valid package and ten negative cases in temporary copies, including equal-length checksum corruption and a missing data license. It does not call the Windows registration context. `Register.ps1` and `Unregister.ps1` were not invoked. Registry changes, registration, activation, and desktop input remain unverified.
 
 ## Registration requires explicit authorization
 

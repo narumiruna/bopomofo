@@ -2,13 +2,13 @@
   "data_kind": "synthetic",
   "scores": "self-authored ranking values, not observed frequency",
   "source": {
-    "base_commit": "46da8acbfc63208692de7d070706de4f668f7c74",
-    "snapshot_sha256": "f0381dba3d24369b3dc728290da92b6ad921fb1c9d720214230b937fc3f7f394",
-    "paths": 125,
+    "base_commit": "ee12aec78afa4664f073d31cd184beddb988a465",
+    "snapshot_sha256": "8615b4a076138d5243e391555d6fd6d49fd8210e7c9efa37c9217cdc14fe6958",
+    "paths": 126,
     "method": "sorted path + NUL + bytes + NUL; source/build/fixture/scripts/CNS/libchewing inputs only"
   },
   "generator_sha256": "90ba6d37b03a16a0ecfc33ade60615a5b3ae41fdf49e94aa44907d50d73d3338",
-  "cli_sha256": "7926a740865226cec2e974cc2c1b540bf546f444c0155d88b4c276ddb7333a1d",
+  "cli_sha256": "c828b62b493ea08da9de50ca141028a9a4b289d0fd0b3088bca2b82cafbd003a",
   "rustc_verbose": "rustc 1.92.0 (ded5c06cf 2025-12-08)\nbinary: rustc\ncommit-hash: ded5c06cf21d2b93bffd5d884aa6e96934ee4234\ncommit-date: 2025-12-08\nhost: x86_64-unknown-linux-gnu\nrelease: 1.92.0\nLLVM version: 21.1.3",
   "cargo_version": "cargo 1.92.0 (344c4567c 2025-10-21)",
   "generated": {
@@ -79,30 +79,30 @@
         "rustc_version_status": "unavailable: compiler version was not embedded at build time"
       },
       "initialization": {
-        "lexicon_parse_ns": 1864133,
-        "engine_new_ns": 11933,
-        "total_ns": 1876066
+        "lexicon_parse_ns": 1834764,
+        "engine_new_ns": 9298,
+        "total_ns": 1844062
       },
       "per_key_latency": {
         "unit": "nanoseconds",
         "percentile_method": "nearest_rank",
         "samples": 33100,
-        "p50": 2145931,
-        "p95": 8251667,
-        "p99": 8597269
+        "p50": 2124442,
+        "p95": 8210526,
+        "p99": 8612335
       },
       "probe_latency": {
         "unit": "nanoseconds",
         "percentile_method": "nearest_rank",
         "samples": 33100,
-        "p50": 632,
-        "p95": 1423,
-        "p99": 2094
+        "p50": 651,
+        "p95": 1332,
+        "p99": 1854
       },
       "memory": {
         "measurement": "process_resident_set_after_benchmark",
         "source": "linux_proc_self_status_vmrss_kib",
-        "resident_bytes": 7614464,
+        "resident_bytes": 7589888,
         "status": "available"
       },
       "method": {
@@ -155,30 +155,30 @@
         "rustc_version_status": "unavailable: compiler version was not embedded at build time"
       },
       "initialization": {
-        "lexicon_parse_ns": 1788296,
-        "engine_new_ns": 15129,
-        "total_ns": 1803425
+        "lexicon_parse_ns": 1945403,
+        "engine_new_ns": 13296,
+        "total_ns": 1958699
       },
       "per_key_latency": {
         "unit": "nanoseconds",
         "percentile_method": "nearest_rank",
         "samples": 33100,
-        "p50": 2133856,
-        "p95": 8202707,
-        "p99": 8489887
+        "p50": 2143738,
+        "p95": 8174868,
+        "p99": 8597391
       },
       "probe_latency": {
         "unit": "nanoseconds",
         "percentile_method": "nearest_rank",
         "samples": 33100,
-        "p50": 622,
-        "p95": 1342,
-        "p99": 1994
+        "p50": 642,
+        "p95": 1392,
+        "p99": 2144
       },
       "memory": {
         "measurement": "process_resident_set_after_benchmark",
         "source": "linux_proc_self_status_vmrss_kib",
-        "resident_bytes": 7495680,
+        "resident_bytes": 7639040,
         "status": "available"
       },
       "method": {

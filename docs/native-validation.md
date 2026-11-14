@@ -12,7 +12,7 @@ Rust tests、platform build、headless contract tests 與 desktop checks 是不�
 
 ## libchewing migration — 2026-11-14 UTC
 
-Branch `narumi/refactor/libchewing-engine` 從 `46da8ac` 全面改用 `chewing` 0.13.1、C ABI v2 與唯一 asset pipeline。以下是本輪證據，不沿用歷史成功紀錄。Source/build/fixture snapshot：125 paths，SHA-256 `f0381dba3d24369b3dc728290da92b6ad921fb1c9d720214230b937fc3f7f394`；計算法與精確範圍見 [benchmark method](benchmarks/README.md#identity-and-method)。Final snapshot 為 `c5072de5022fb7cf44a84723b5aa1c23bbd0ea8c275bd79efcaa779e09474cb3`；與 timing snapshot 只有 `.gitattributes` 對原樣上游 AUTHORS 的 whitespace-check rule 不同，已重算並驗證。Code、data、CLI bytes 與 corpus 都不變。
+Branch `narumi/refactor/libchewing-engine` 從 `46da8ac` 全面改用 `chewing` 0.13.1、C ABI v2 與唯一 asset pipeline。以下是本輪證據，不沿用歷史成功紀錄。Source/build/fixture snapshot：126 paths，SHA-256 `8615b4a076138d5243e391555d6fd6d49fd8210e7c9efa37c9217cdc14fe6958`；計算法與精確範圍見 [benchmark method](benchmarks/README.md#identity-and-method)。Final snapshot `3c1cf95698192e4ecb02b0243675a707533efa68f45ead4a9756156c9f91a089` 只再修正兩份 Windows preflight scripts；runtime、measured CLI bytes 與 corpus 無差異，已獨立重算驗證。Timing snapshot 包含 PR review fixes、macOS runner／entrypoint 修正與原樣 AUTHORS 的狹義 whitespace-check rule。原先 `f0381dba…` 的 timing reports 已由 final-source rerun 取代。
 
 Host：Linux x86_64／WSL2 6.18.33.2、AMD Ryzen 9 7950X3D、Rust/Cargo 1.92.0。Docker SDK 為 Ubuntu 24.04、GCC 13.3、CMake 3.28.3、Fcitx5 5.1.7、xkbcommon 1.6.0、nlohmann_json 3.11.3。Source mount readonly，所有 Linux build 從空 temporary directory 開始。
 
@@ -22,24 +22,45 @@ Host：Linux x86_64／WSL2 6.18.33.2、AMD Ryzen 9 7950X3D、Rust/Cargo 1.92.0�
 | Release offline | Host baseline 首次因缺 `jq` status 127 失敗。隔離容器補齊既有依賴後 baseline 與 final 均 20/20 passed；stub cargo／gh、無 network／remote writes。 |
 | Upstream discovery | 固定版 explicit memory editor、non-BMP、selection／commit／ack 與 embedded mini metadata，三個獨立 spike tests passed。 |
 | Final Rust | Format／Clippy exit 0；workspace debug／release 各 **74 passed**：CLI 36、core 16、FFI 6、Windows portable 16。舊 parser／decoder／index 的 41 個 core tests 隨實作移除，改以 16 個 upstream-boundary tests 與完整 replay 驗證，不保留第二套算法。 |
-| Replay | 四個 profiles、12 corpora／**478 events**：baseline 361、CNS 81、quality 17、Unicode 19。各自編譯 assets，手寫期待；debug／release passed。Unicode 保留完整 `𠀀é😀`、11 bytes／6 UTF-16 units，以四 readings 表示，另檢查 phrase 內部 byte cursor 5。 |
+| Replay | 四個 profiles、12 corpora／**484 events**：baseline 367、CNS 81、quality 17、Unicode 19。各自編譯 assets，手寫期待；debug／release passed。Unicode 保留完整 `𠀀é😀`、11 bytes／6 UTF-16 units，以四 readings 表示，另檢查 phrase 內部 byte cursor 5。 |
 | Probe / privacy | 20,000-event repeated-probe／actual parity；sentinel logger capture、compile-time log Off 與 memory-only user store。Final Docker `scripts/check-engine-privacy.sh` 的 debug／release initialization、handle、probe、selection、reset、drop markers 之間，file／network／read／write syscalls 均為零，controlled HOME 保持空白。不是所有路徑的形式化證明。 |
 | Assets / ABI | CLI asset pipeline 4、core asset/schema negatives 5、FFI 6；缺／額外／重複／traversal、bounds、UTF-8、hash／version、checksum-valid cycle／empty node／bad range、ownership、panic boundary、重複生命週期與一次性 commit 均 passed。V1 constructor 已刪除，v1 host version guard 必須拒絕 v2 library。 |
-| Linux v2 Release | Clean build，**11/11 CTests passed**：ABI、legacy rejection、四組 replay、wrong-profile rejection、default data、管理 dry-run 與 known-gap reproducer。 |
-| C++ ASan / UBSan | Clean Debug C++ build，leak detection／halt-on-error，**11/11 passed**；known-gap case 另跑 **1/1**。Rust release archive 與 system SDK libraries **未 instrumentation**。 |
+| Linux v2 Release | Clean build，**12/12 CTests passed**：ABI、legacy rejection、四組 replay、wrong-profile rejection、default data、custom-source incremental rebuild、管理 dry-run 與 known-gap reproducer。 |
+| C++ ASan / UBSan | Clean Debug C++ build，leak detection／halt-on-error，**12/12 passed**；known-gap case 另跑 **1/1**。Rust release archive 與 system SDK libraries **未 instrumentation**。 |
 | Windows cross-check | x64／x86／ARM64 MSVC targets 各自 `cargo check --all-targets --locked` 與 Clippy `-D warnings` exit 0；不是 native link／load／desktop 證據。 |
-| PowerShell | Official 7.5.0 Linux amd64 container，5 個 scripts AST passed；portable asset preflight 的 valid package + 5 negatives passed，包含等長 checksum corruption 與 missing data license。未呼叫 Register／Unregister。原嘗試的版本專屬 image tag 不存在（125），改用實際解析為 7.5.0 的 `7.5-debian-12`，digest `sha256:7ab5bd5ca6f95a3351fa0c6a1205237d57048c94542355aab55519a0861a9b25` 後重跑成功。 |
-| Scripts / workflow / docs | 所有相關 Bash syntax、actionlint（不啟用選用 ShellCheck／Pyflakes）、local Markdown file links 與 whitespace checks passed。macOS SDK execution 與 Windows native execution 尚待本輪 hosted CI，不能借用舊紀錄。 |
+| PowerShell | Official 7.5.0 Linux amd64 container，5 個 scripts AST passed；portable asset preflight 的 valid package + 10 negatives passed，包含等長 checksum corruption 與 missing data license。未呼叫 Register／Unregister。原嘗試的版本專屬 image tag 不存在（125），改用實際解析為 7.5.0 的 `7.5-debian-12`，digest `sha256:7ab5bd5ca6f95a3351fa0c6a1205237d57048c94542355aab55519a0861a9b25` 後重跑成功。 |
+| Scripts / workflow / docs | 所有相關 Bash syntax、actionlint（不啟用選用 ShellCheck／Pyflakes）、local Markdown file links 與 whitespace checks passed。本輪 hosted native builds 已另列下表，不借用舊紀錄。 |
 | Default data | Pinned source／獨立 LGPL grants／notices 見 `data/SOURCES.md`、`data/libchewing/NOTICE.md`；160,440 entries 兩次 build bytes 相同，明確驗證 `你好` phrase、license 分離與 caller-supplied data 不被改授權。CNS 原始 bytes 不變。 |
-| Benchmarks | Python 9/9；三個 profiles 的兩次 canonical／asset builds、debug／release／repeat replay 與各兩次 100-repetition release benchmarks 全部 exit 0。Synthetic handle p95 **8.20–8.31 ms > 5 ms**，probe p95 1.26–1.45 µs；不符合 5 ms 目標。Default data 的八-event synthetic corpus 另列 report，不能代表產品 latency／品質。 |
+| Benchmarks | Python 9/9；三個 profiles 的兩次 canonical／asset builds、debug／release／repeat replay 與各兩次 100-repetition release benchmarks 全部 exit 0。Synthetic handle p95 **8.17–8.27 ms > 5 ms**，probe p95 1.14–1.44 µs；不符合 5 ms 目標。Default data 的八-event synthetic corpus 另列 report，不能代表產品 latency／品質。 |
+
+### Hosted checks after review fixes
+
+Final preflight revision `979a4256dd1f81f2cb02bee7cb867913f7876647` 的 [common run 43578330210](https://github.com/narumiruna/bopomofo/actions/runs/43578330210) **5/5 passed**，[Windows run 43578330207](https://github.com/narumiruna/bopomofo/actions/runs/43578330207) **3/3 passed**。新增的 source-metadata preflight checks 已在三個 native Windows targets 實際執行。下表 DLL hashes 屬前一個相同 runtime code 的 `9cc7379` builds，不假稱為不同 run 的 binary hashes。
+
+Commit `9cc73796f014dcc2015468e8d6f81ae6ca39aa6e` 的 [common PR run 43577618948](https://github.com/narumiruna/bopomofo/actions/runs/43577618948) **5/5 jobs passed**，[Windows PR run 43577618932](https://github.com/narumiruna/bopomofo/actions/runs/43577618932) **3/3 passed**。這是本輪 actual execution，不是 cross-check。
+
+| Runner / scope | Actual result |
+| --- | --- |
+| macOS 15.8.2 (24H232), arm64, image `macos-15-arm64/20261104.0514.1` | Rust debug/release 74 each；Swift native link、ABI v2、default bundle、plist、ad-hoc signature／strict verify、127 adapter assertions、124 actual C ABI assertions、16 sandbox management dry runs passed。Build evidence file 在 runner 產生；未上傳 native binary。沒有 IMK desktop activation。 |
+| Windows host workspace | Debug/release各86 tests，包括host DLL loader；format／Clippy passed。 |
+| Windows x64, x86/WOW64, ARM64 | 每個 target 在對應 native runner 完成debug/release DLL link、27 unit tests＋1 loader test per profile、asset build與preflight。未 registration／activation。 |
+| Ubuntu x86_64 / ARM64 | Workspace gates、fresh native Linux build、ABI v2、12/12 CTests、debug/release privacy trace passed。不是 desktop checks。 |
+
+| Windows target | Debug DLL SHA-256 | Release DLL SHA-256 |
+| --- | --- | --- |
+| x64 | `c04ec110d12d9c5dc8264b327d71833cc2b403be5136a0988634aa891ad89334` | `b761344679d1efe1e30e74d32d9ef379fce396bff80fe75204bdef83ec5dcc5f` |
+| x86 | `da7487cebfc1d8c478723eccb79dfe19f832db87ce5cde15ea44e852f3b7d0f7` | `aff2c5e66ddbb0930047d402a0f4d083700185217e16759e1d367d6352dfc671` |
+| ARM64 | `ee299118848504517f0c0f05922cfc35cc81d8def3b4752d54311cdc94848540` | `bc50a535b69397b0c8ad426c1872f280afc77dc40092f8e0221a3dd90a7468af` |
+
+Review 發現 Caps Lock chord 在 shortcut guard 前取消 composition，已修正並加入六個手寫 replay events，涵蓋 Latin mode 與 pending Chinese text。CMake custom source 未追蹤導致 stale package，已新增依賴與實際 edit→build→hash-change／entries=2 regression。macOS `ee12aec` SDK build 發現 `main.swift` 的舊 `LexiconResource` reference（exit 1）；已改為 `AssetResource`，並由上述 successful SDK run 重驗。這些 change-caused failures 均已修正，沒有移交為 external blocker。另修正 Windows preflight 必填 `data_version`／`source_sha256` 與 core schema 不一致；portable PowerShell 10 negatives passed，native CI 再驗證。
 
 可重跑入口見 README、三平台指南及 benchmark README。所有 input 都是 public synthetic fixtures，不擷取真實鍵盤。核對 node schema 後才使用上游 lazy iterator；這防止 hash 有效但結構損壞的 index 導致無界 traversal。Snapshot 重用一次上游 conversion，並正確映射 phrase 內部 scalar offset；沒有自研 runtime parser／decoder、Editor clone 或 keystroke replay。
 
 | Current local artifact | SHA-256 |
 | --- | --- |
-| Linux Release addon | `ff85ecf2ebe3e3f525e3f880a23e527ee5d3228091dccdc31573814e19e63eb1` |
-| C++ ASan/UBSan addon | `57e081cd2c5ca32cd69997137da36c042f4f4df4a873d3241278416027527a58` |
-| Rust release archive, both builds | `c2f994e6721d4f66da68dae8acdebd545112a56594be0f255c60c6f06d909465` |
+| Linux Release addon | `6afda751e3084a1239f4658ed6d20053081b22635a63837f7ddfb23e8c999f73` |
+| C++ ASan/UBSan addon | `60ecf880ba745aa8a882647c71632b58851494071b4e09574a47b42ce06fcec2` |
+| Rust release archive, both builds | `ba1c806886d66e8d0fdfb9fcd7e5a4d6540ad2eff7fd3053435b3de128c96f83` |
 | C ABI v2 header | `fde21c9e05c1e4d0bb4dd53384b851ff8b55aa8822ffb6c6252b3265aca5e246` |
 | Default dictionary / manifest | `0440c11a9e92bf09497a1c3014a8cc79bb9f552981d1feb29230f2449ea44439` / `6bb6c5d7022b335979077d5dfc65b5c6fa0439f0ada62447b4736204c7b1df6b` |
 
