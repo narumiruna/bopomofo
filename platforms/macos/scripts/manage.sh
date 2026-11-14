@@ -7,6 +7,7 @@ SOURCE_ID=org.bopomofo.inputmethod.Development.zhuyin
 CONNECTION=BopomofoDevelopment_Connection
 NAME='Bopomofo Development.app'
 SOURCE="$ROOT/platforms/macos/build/$NAME"
+SOURCE_KIND=current
 
 usage() {
     echo 'usage: manage.sh install|update|uninstall [--dry-run|--apply]'
@@ -50,7 +51,7 @@ check_path "$BACKUPS"
 
 plist_value() { /usr/libexec/PlistBuddy -c "Print :$2" "$1/Contents/Info.plist" 2>/dev/null; }
 validate_bundle() {
-    local app=$1
+    local app=$1 kind=${2:-current}
     [[ -d "$app" && ! -L "$app" ]] || fail 'bundle is absent or a symlink'
     [[ -z $(find "$app" -type l -print -quit) ]] || fail 'bundle contains symlinks'
     plutil -lint "$app/Contents/Info.plist" >/dev/null 2>&1 || fail 'invalid bundle plist'
@@ -60,22 +61,35 @@ validate_bundle() {
     [[ $(plist_value "$app" InputMethodConnectionName) == "$CONNECTION" ]] || fail 'unexpected connection'
     [[ $(plist_value "$app" InputMethodServerControllerClass) == BopomofoInputController ]] || fail 'unexpected controller'
     local resources="$app/Contents/Resources" manifest="$app/Contents/Resources/assets.json"
-    [[ -x "$app/Contents/MacOS/BopomofoDevelopment" && -f "$resources/dictionary.dat" &&
-       -f "$manifest" ]] || fail 'incomplete bundle'
-    [[ $(wc -c < "$manifest") -le 16384 && $(wc -c < "$resources/dictionary.dat") -le 33554432 ]] || fail 'asset size limit'
-    [[ $(plutil -extract format raw -o - "$manifest") == bopomofo-assets-v1 &&
-       $(plutil -extract engine raw -o - "$manifest") == chewing-0.13.1 &&
-       $(plutil -extract builder raw -o - "$manifest") == bopomofo-assets-v1 &&
-       $(plutil -extract files.0.name raw -o - "$manifest") == dictionary.dat ]] || fail 'incompatible asset manifest'
-    if plutil -extract files.1 json -o - "$manifest" >/dev/null 2>&1; then fail 'unexpected asset' ; fi
-    local actual expected length
-    actual=$(shasum -a 256 "$resources/dictionary.dat" | awk '{print $1}')
-    expected=$(plutil -extract files.0.sha256 raw -o - "$manifest")
-    length=$(plutil -extract files.0.bytes raw -o - "$manifest")
-    [[ "$expected" == "$actual" && "$length" -eq $(wc -c < "$resources/dictionary.dat") ]] || fail 'asset checksum mismatch'
-    for name in Project-LICENSE.txt Engine-LICENSE.txt Engine-AUTHORS.txt Engine-NOTICE.txt Data-LICENSE.txt Data-NOTICE.txt; do
-        [[ -s "$resources/$name" ]] || fail 'missing license or notice'
-    done
+    [[ -x "$app/Contents/MacOS/BopomofoDevelopment" ]] || fail 'incomplete bundle'
+    if [[ "$kind" == retained && ! -e "$resources/dictionary.dat" && ! -e "$manifest" ]]; then
+        # Only existing installations and rollback backups can use the v1 layout.
+        local legacy="$resources/lexicon.tsv" checksum="$resources/lexicon.sha256"
+        [[ -f "$legacy" && -f "$checksum" ]] || fail 'incomplete legacy bundle'
+        [[ -s "$legacy" && $(wc -c < "$legacy") -le 67108864 &&
+           $(wc -c < "$checksum") -eq 65 &&
+           $(tail -c 1 "$checksum" | od -An -tu1) -eq 10 ]] || fail 'invalid legacy asset size'
+        local actual expected
+        actual=$(shasum -a 256 "$legacy" | awk '{print $1}')
+        expected=$(tr '[:upper:]' '[:lower:]' < "$checksum")
+        [[ "$expected" =~ ^[0-9a-f]{64}$ && "$expected" == "$actual" ]] || fail 'legacy checksum mismatch'
+    else
+        [[ -f "$resources/dictionary.dat" && -f "$manifest" ]] || fail 'incomplete bundle'
+        [[ $(wc -c < "$manifest") -le 16384 && $(wc -c < "$resources/dictionary.dat") -le 33554432 ]] || fail 'asset size limit'
+        [[ $(plutil -extract format raw -o - "$manifest") == bopomofo-assets-v1 &&
+           $(plutil -extract engine raw -o - "$manifest") == chewing-0.13.1 &&
+           $(plutil -extract builder raw -o - "$manifest") == bopomofo-assets-v1 &&
+           $(plutil -extract files.0.name raw -o - "$manifest") == dictionary.dat ]] || fail 'incompatible asset manifest'
+        if plutil -extract files.1 json -o - "$manifest" >/dev/null 2>&1; then fail 'unexpected asset' ; fi
+        local actual expected length
+        actual=$(shasum -a 256 "$resources/dictionary.dat" | awk '{print $1}')
+        expected=$(plutil -extract files.0.sha256 raw -o - "$manifest")
+        length=$(plutil -extract files.0.bytes raw -o - "$manifest")
+        [[ "$expected" == "$actual" && "$length" -eq $(wc -c < "$resources/dictionary.dat") ]] || fail 'asset checksum mismatch'
+        for name in Project-LICENSE.txt Engine-LICENSE.txt Engine-AUTHORS.txt Engine-NOTICE.txt Data-LICENSE.txt Data-NOTICE.txt; do
+            [[ -s "$resources/$name" ]] || fail 'missing license or notice'
+        done
+    fi
     /usr/bin/codesign --verify --strict "$app" >/dev/null 2>&1 || fail 'invalid bundle signature'
 }
 
@@ -85,15 +99,16 @@ case "$ACTION" in
         validate_bundle "$SOURCE"
         ;;
     update)
-        validate_bundle "$DEST"
+        validate_bundle "$DEST" retained
         validate_bundle "$SOURCE"
         ;;
-    uninstall) validate_bundle "$DEST" ;;
+    uninstall) validate_bundle "$DEST" retained ;;
     restore)
         SOURCE="$BACKUPS/$BACKUP_NAME"
+        SOURCE_KIND=retained
         check_path "$SOURCE"
-        validate_bundle "$SOURCE"
-        if [[ -e "$DEST" ]]; then validate_bundle "$DEST"; fi
+        validate_bundle "$SOURCE" retained
+        if [[ -e "$DEST" ]]; then validate_bundle "$DEST" retained; fi
         ;;
 esac
 
@@ -118,7 +133,7 @@ STAGE=$(mktemp -d "$INPUT_METHODS/.bopomofo-development.XXXXXX")
 cleanup() { rm -rf -- "$STAGE"; }
 trap cleanup EXIT
 /usr/bin/ditto "$SOURCE" "$STAGE/$NAME"
-validate_bundle "$STAGE/$NAME"
+validate_bundle "$STAGE/$NAME" "$SOURCE_KIND"
 HAD_PREVIOUS=false
 if [[ -e "$DEST" ]]; then
     mv "$DEST" "$BACKUP"

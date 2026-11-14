@@ -68,6 +68,19 @@ Build-local prefix 會影響 addon bytes，不宣稱 native binary byte-reproduc
 
 **Failed / blocked / not run：** Final local required checks 沒有未修正的失敗。已量得 synthetic p95 超過 5 ms，保留為效能風險，不更改資料或次數掩蓋。Representative corpus、Taiwan 品質、installed native IME、application／display matrix 與 Fcitx index-only safety 仍 open。`800bc99` 的 Windows native push run [43576769964](https://github.com/narumiruna/bopomofo/actions/runs/43576769964) 三 target passed；common run [43576769912](https://github.com/narumiruna/bopomofo/actions/runs/43576769912) 的 Linux／Windows jobs passed，但 macOS 在任何 steps 執行前 cancelled，annotation 為 `The configuration 'macos-14-arm64-us-default' is not supported`。因此改用 `macos-15` 重跑相同 gates，不以取消代替成功。後續 current-run 結果另記；任何 code failure 均須修正。沒有 IME 安裝、註冊、啟用、移除、系統設定變更、tag、release dispatch 或 artifact publication。
 
+## PR #5 review follow-up
+
+The review follow-up keeps the libchewing runtime and asset format unchanged.
+
+- macOS management can validate a complete signed v1 resource layout for an existing installation or a rollback backup. New install and update sources still require v2. Restore validates the copied stage with the retained-bundle rule. Mixed layouts, bad checksums, invalid signatures and unrelated bundles remain rejected.
+- Replay tests reserve a unique parent directory. A Drop guard removes it after success or panic. The four repository-fixture tests pass in debug and release.
+- The privacy filter now includes positional and vectored reads/writes. A synthetic helper confirmed all eight added syscall names are traced. The debug/release engine traces still have no file/network/read/write operations between markers.
+- Local workspace tests pass: 75 debug and 75 release. Clippy, Bash syntax and whitespace checks pass. A fresh Linux container passes 12/12 CTests and both privacy profiles.
+- New macOS dry-run cases cover retained v1 update/removal/restore, rejection of legacy new-build sources, bad legacy checksums, missing files, mixed layouts and invalid signatures. SDK execution is pending the follow-up CI at this record.
+- The external Codex security review reports that the paying account reached its usage limits. That review is blocked, not passed. The payer must restore quota or make an account-side credit decision. No billing setting was changed.
+
+No IME was installed, registered, enabled or removed. The sandbox tests do not use `--apply`. Installed desktop, corpus, Fcitx protocol and release restrictions remain unchanged.
+
 ## CNS11643 rebase — 2026-11-04 UTC
 
 PR #3 從 `8392601b44d86fe2989f1b8d252eb64ed5c56d4e` rebase 到已合併 PR #4 的 `main` commit `8b0b7b2d8c4bac80d7af95102fb53cd50fa78941`。保留兩個原始 commits 的用途與全部九個 CNS data/license/notice blobs，與 rebase 前逐檔 bytes 相同。未重新下載或擴大資料來源。

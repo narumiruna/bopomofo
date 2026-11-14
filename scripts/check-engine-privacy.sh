@@ -20,7 +20,7 @@ for profile in debug release; do
     (
         cd "$work/home"
         env HOME="$work/home" XDG_CONFIG_HOME="$work/home/config" XDG_DATA_HOME="$work/home/data" \
-            CHEWING_PATH=/unavailable strace -f -e trace=%file,%network,read,write,close -o "$trace" \
+            CHEWING_PATH=/unavailable strace -f -e trace=%file,%network,read,write,pread64,pwrite64,readv,writev,preadv,pwritev,preadv2,pwritev2,close -o "$trace" \
             "$binary" --exact learning_and_logging_are_disabled --nocapture --test-threads=1
     ) > "$target/libchewing-evidence/privacy-$profile.log" 2>&1
     awk '

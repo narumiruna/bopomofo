@@ -165,6 +165,8 @@ Missing parent directories can be created under `~/Library`: `Input Methods`, `A
 
 The source is the local build bundle. The script rejects root execution, symlink path components, symlinks inside the bundle, unexpected identifiers, incomplete bundles, asset/manifest mismatches, missing notices, and invalid signatures. `install` refuses any existing destination. `update`, `uninstall`, and `restore` refuse an unrelated destination. A corrupt bundle is also refused; it requires an authorized manual inspection instead of a broad cleanup command.
 
+New install and update sources must use v2 assets. A retained installation or rollback backup can use the complete v1 `lexicon.tsv` / `lexicon.sha256` layout. Its fixed identifiers, checksum, paths and signature must still pass validation. A mixed v1/v2 layout is rejected. Restore copies the complete retained bundle, not old data into a v2 engine. This does not add a v1 runtime loader.
+
 After authorization, append `--apply` to the required action. The script copies and verifies the replacement before moving the installed version to its backup. If the final installation move fails, it tries to restore that backup. Uninstall preserves the removed bundle as a backup rather than deleting it.
 
 The script does not call `defaults`, `lsregister`, `launchctl`, or `killall`. It does not stop apps, change input-source settings, or select an input source. The OS can discover a bundle copied into `Input Methods`; registration/loading is therefore part of the authorized native handoff, not part of dry-run validation. A logout/login or manual settings action can be needed. This has not been tested.
