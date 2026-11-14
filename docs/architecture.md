@@ -6,9 +6,32 @@
 
 Core regression tests 使用自製測試詞庫。macOS 預設開發 bundle 使用核准的 CNS11643 常用／次常用單字補充與五筆自製詞組；詳見 [CNS guide](../data/cns11643/README.md)。Build 與 contract tests 不代表 native desktop 驗收，實際結果見 [native-validation.md](native-validation.md)。
 
-第一個跨平台版本使用 Traditional Chinese、標準 Dachen keyboard layout 與完全離線的輸入流程。組字狀態、Zhuyin parser、詞庫索引、斷詞與候選排序均自行以 Rust 實作，不使用 `chewing`、`librime` 或其他現成輸入引擎。
+第一個跨平台版本使用 Traditional Chinese、標準 Dachen keyboard layout 與完全離線的輸入流程。目前組字狀態、Zhuyin parser、詞庫索引、斷詞與候選排序仍由自製 Rust 引擎處理，尚未引入 libchewing。專案已允許以 libchewing 取代自製引擎，不再要求從零實作完整輸入引擎。
 
 第一版不包含個人化學習、使用者詞庫、雲端同步、LLM 選字、reconversion 或自訂跨平台 candidate window。Linux 只接 Fcitx5，不直接實作 Wayland／X11 protocol。
+
+## Engine adoption policy
+
+目標是由 Rust `ime-core` 統一封裝 [libchewing](https://codeberg.org/chewing/libchewing)，保留既有平台 adapter、C ABI 與 replay 測試工具。
+
+```mermaid
+flowchart LR
+    Adapters["Native adapters"] --> Core["ime-core: shared input interface"]
+    Core --> Chewing["libchewing"]
+```
+
+此圖只表示責任邊界；macOS／Linux 仍經由 `ime-ffi` 呼叫 `ime-core`，Windows 經由 Rust API 呼叫。
+
+- `ime-core` 負責統一事件、lifecycle、key probe、snapshot 與一次性 commit 契約；平台 adapter 不直接依賴 libchewing。
+- 以 libchewing 取代自製引擎，不長期維護兩套輸入引擎，也不在平台層重作 parser、斷詞或選字規則。
+- 固定所採用的 dependency version，核對 Rust toolchain 相容性、API 與資料格式；不假設開發分支與穩定版相同。
+- 保留專案 `AGPL-3.0-only` 授權，另行確認 libchewing 所選版本的 license obligations。
+- libchewing 配套詞庫須獨立確認來源、授權、版本、checksum 與 notices；採用引擎不代表已核准資料匯入或散布。
+- 輸入處理完全離線，不記錄或傳送輸入內容；停用輸入內容 logging、自動學習與使用者詞庫寫入。
+- 輸入行為變更須同步更新 [input-spec.md](input-spec.md) 與 replay regression cases，不直接覆寫既有 expectations 以符合上游輸出。
+- Core tests、platform builds 與 native IME checks 仍須分別取得新實作的證據，不沿用自研引擎的結果宣稱遷移完成。
+
+以下元件圖、core internals、C ABI 與 lexicon pipeline 描述目前自研實作及現行契約。它們不代表 libchewing 已整合或符合全部契約。遷移時須明確記錄並驗證介面與資料格式的變更。
 
 ## Components and dependencies
 

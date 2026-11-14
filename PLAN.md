@@ -2,11 +2,11 @@
 
 ## Goal
 
-從零實作一個跨 Windows、Linux、macOS 的 Zhuyin IME。共用輸入引擎以 Rust 實作，各平台透過 native adapter 接入系統輸入法介面。
+實作一個跨 Windows、Linux、macOS 的 Zhuyin IME。共用輸入介面與引擎整合放在 Rust `ime-core`，各平台透過 native adapter 接入系統輸入法介面。
 
-「從零」指自行實作組字狀態、Zhuyin parser、詞庫索引、斷詞與候選排序；不使用 `chewing`、`librime` 或其他現成輸入引擎。可以使用系統 API、FFI binding、測試工具，以及授權允許使用與散布的詞庫資料。
+專案已允許採用 libchewing 取代自製輸入引擎，不再要求從零實作組字狀態、Zhuyin parser、詞庫索引、斷詞與候選排序。目標架構與整合限制見 [Engine adoption policy](docs/architecture.md#engine-adoption-policy)。目前尚未引入 libchewing，遷移實作與驗證仍待完成。
 
-目前依 Goal 指示執行本計畫。可在本機完成的程式碼、build 與 contract checks 均在此追蹤；不安裝、註冊或啟用輸入法，也不修改系統設定。未通過的 native、正式資料與效能 gates 保持未完成。
+本計畫保留原自研階段的實作與驗證紀錄，不授權安裝、註冊、啟用輸入法或修改系統設定。未通過的 native、正式資料與效能 gates 保持未完成。
 
 ## Context
 
@@ -39,7 +39,7 @@
 
 ## Architecture
 
-完整架構與責任邊界見 [docs/architecture.md](docs/architecture.md)。以下為實作計畫摘要，不代表已完成或通過 native 驗證。
+完整架構與責任邊界見 [docs/architecture.md](docs/architecture.md)。以下圖表與 core 摘要描述目前自研實作，不代表 libchewing 已整合或通過 native 驗證。
 
 ```mermaid
 flowchart TB
@@ -127,7 +127,9 @@ Core、FFI、CLI 與平台目錄已依階段建立，未先建立空的抽象層
 
 ## Plan
 
-順序：P0 → P1 → P2 → P3 → P4 → P5 → P6 → P7。P1 的 macOS integration spike 必須早於完整 decoder，避免最後才發現系統整合問題。
+以下 P0–P7 保留原自研階段的任務與證據；其中自研 parser、decoder 與資料格式要求不構成 libchewing 遷移的新要求。這些完成紀錄不能代替新引擎的驗證。
+
+原執行順序：P0 → P1 → P2 → P3 → P4 → P5 → P6 → P7。P1 的 macOS integration spike 早於完整 decoder，以先確認系統整合方式。
 
 ### P0 — 固定輸入規格與外部前提
 
@@ -264,7 +266,7 @@ cargo test --workspace --all-targets
 
 以下檢查的是實作計畫的交付證據，不代表尚未執行的 native acceptance 已通過。
 
-- [x] 核心 parser、composition、decoder、選字與 commit 均為自研 Rust 實作；workspace dependencies 不含現成輸入引擎。
+- [ ] 由 `ime-core` 封裝 libchewing，完成輸入契約、資料授權與 regression 驗證；目前尚未整合，不以原自研成果標為完成。
 - [ ] P0–P7 的 agent 可執行任務均附上有效證據；失敗、blocked 或缺少環境的檢查未被標成通過。
 - [ ] 端到端共用 fixture、Unicode、事件透傳、callback 與 FFI ownership 驗證完整。
   - 本機 core／FFI／portable adapter tests 通過；Windows native callbacks 與 Fcitx stale UI protocol 路徑仍未通過，不能以 headless／type check 取代。

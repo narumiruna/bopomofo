@@ -1,12 +1,14 @@
 # bopomofo
 
-跨平台 Traditional Chinese Zhuyin IME。共用輸入引擎以 Rust 自行實作，不使用現成輸入引擎。
+跨平台 Traditional Chinese Zhuyin IME。共用輸入介面與引擎整合放在 Rust `ime-core`，各平台透過 native adapter 接入。
+
+專案已允許採用 libchewing 取代自製輸入引擎。目前仍使用自製引擎，尚未加入 libchewing dependency；目標架構與整合限制見 [Architecture](docs/architecture.md#engine-adoption-policy)。
 
 目前是開發版本，**不可宣稱已通過日常使用或 native IME 驗收**。正式詞庫、代表性效能與各平台 desktop checks 仍須依驗證紀錄確認。
 
 ## Components
 
-- `ime-core`：標準 Dachen、組字狀態、詞庫索引、dynamic-programming decoder 與候選排序。
+- `ime-core`：共用輸入介面；目前自行實作標準 Dachen、組字狀態、詞庫索引、dynamic-programming decoder 與候選排序。
 - `ime-ffi`：macOS／Linux 共用的 C ABI。
 - `ime-cli`：非互動 replay、詞庫驗證、正規化建置與 benchmark。
 - Native adapters：macOS InputMethodKit、Windows TSF、Linux Fcitx5。

@@ -13,7 +13,9 @@
 - 保留根目錄 `LICENSE` 的 GNU AGPL v3 policy，不更換專案授權。
   - 自製 fixtures 依 repository 的 AGPL policy 管理，不另加新的 license。
   - 外部資料保留各自的 license 與 notices；不得因為放入 AGPL repository 就宣稱其已改以 AGPL 授權。
-- 自行實作 parser、index 與 decoder。不匯入 McBopomofo、`chewing`、`librime` 或其他輸入引擎的實作。
+- 允許由 `ime-core` 採用 libchewing，整合限制見 [Engine adoption policy](../docs/architecture.md#engine-adoption-policy)。
+  - libchewing 配套詞庫尚未核准匯入或散布，須獨立核對資料來源、授權、固定版本、checksum 與 notices。
+  - 此決策不核准採用 McBopomofo、`librime` 或其他輸入引擎，也不解除既有候選資料的匯入限制。
 - 來源下載與查核不在 runtime 進行。Keystroke processing 完全離線，不下載資料，也不記錄或傳送輸入內容。
 - Import 前須核對**資料本身**及上游來源的權利。Engine license、公開下載、GitHub license badge 或 checksum 都不能單獨證明資料的轉換與散布權利。
 

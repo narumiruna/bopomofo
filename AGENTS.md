@@ -38,11 +38,15 @@
 ## 變更邊界
 
 - 修改 core 介面或平台 adapter 前，先閱讀 `docs/architecture.md`。
-- 輸入規則放在共用的 Rust core。
+- 共用輸入介面與引擎整合放在 Rust `ime-core`。
 - OS 整合放在平台 adapter。
-- 自行實作輸入引擎，不使用 `chewing`、`librime` 或其他現成輸入引擎。
+- 允許透過 `ime-core` 採用 libchewing，不再要求自行實作完整輸入引擎。
+  - 平台 adapter 不得直接依賴 libchewing 或另行實作選字規則。
+  - 未經使用者明確授權，不改用 `librime` 或其他輸入引擎。
+- 固定 libchewing dependency version，並在引入或升級時確認 Rust toolchain 相容性與 license obligations。
 - 輸入處理必須離線。
 - 不得記錄或傳送 keystrokes、preedit text 或 committed text。
+  - 停用 libchewing 的輸入內容 logging、自動學習與使用者詞庫寫入。
 - 未經使用者明確授權，不得更換專案授權條款。
 - 匯入或散布 lexicon data 前，先確認資料來源與授權。
 - 執行下列動作前，必須取得使用者明確授權。
