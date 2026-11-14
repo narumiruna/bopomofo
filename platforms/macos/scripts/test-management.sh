@@ -132,4 +132,34 @@ run_fail uninstall --dry-run
 printf '%064d\n' 0 > "$BACKUPS/$LEGACY_BACKUP/Contents/Resources/lexicon.sha256"
 /usr/bin/codesign --force --sign - --timestamp=none "$BACKUPS/$LEGACY_BACKUP" >/dev/null 2>&1
 run_fail restore "$LEGACY_BACKUP" --dry-run
+# Complete v2 assets must reject even one leftover legacy resource.
+for name in lexicon.tsv lexicon.sha256; do
+    rm -rf -- "$DEST"
+    /usr/bin/ditto "$APP" "$DEST"
+    cp "$LEGACY/Contents/Resources/$name" "$DEST/Contents/Resources/$name"
+    sign_destination
+    if [[ "$name" == lexicon.tsv ]]; then
+        run_fail uninstall --dry-run
+    else
+        run_fail update --dry-run
+    fi
+done
+MIXED_BACKUP=20250101T000000Z-3.app
+/usr/bin/ditto "$APP" "$BACKUPS/$MIXED_BACKUP"
+for name in lexicon.tsv lexicon.sha256; do
+    cp "$LEGACY/Contents/Resources/$name" "$BACKUPS/$MIXED_BACKUP/Contents/Resources/$name"
+done
+/usr/bin/codesign --force --sign - --timestamp=none "$BACKUPS/$MIXED_BACKUP" >/dev/null 2>&1
+rm -rf -- "$DEST"
+/usr/bin/ditto "$APP" "$DEST"
+run_fail restore "$MIXED_BACKUP" --dry-run
+
+rm -rf -- "$LEGACY_PROJECT/platforms/macos/build/Bopomofo Development.app"
+/usr/bin/ditto "$BACKUPS/$MIXED_BACKUP" "$LEGACY_PROJECT/platforms/macos/build/Bopomofo Development.app"
+MANAGE="$LEGACY_PROJECT/platforms/macos/scripts/manage.sh"
+rm -rf -- "$DEST"
+run_fail install --dry-run
+/usr/bin/ditto "$APP" "$DEST"
+run_fail update --dry-run
+MANAGE=$CURRENT_MANAGE
 printf 'Management scripts: %s dry-run safety cases passed (sandbox only; --apply never executed)\n' "$TESTS"

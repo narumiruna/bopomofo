@@ -75,6 +75,7 @@ validate_bundle() {
         [[ "$expected" =~ ^[0-9a-f]{64}$ && "$expected" == "$actual" ]] || fail 'legacy checksum mismatch'
     else
         [[ -f "$resources/dictionary.dat" && -f "$manifest" ]] || fail 'incomplete bundle'
+        [[ ! -e "$resources/lexicon.tsv" && ! -e "$resources/lexicon.sha256" ]] || fail 'mixed asset layout'
         [[ $(wc -c < "$manifest") -le 16384 && $(wc -c < "$resources/dictionary.dat") -le 33554432 ]] || fail 'asset size limit'
         [[ $(plutil -extract format raw -o - "$manifest") == bopomofo-assets-v1 &&
            $(plutil -extract engine raw -o - "$manifest") == chewing-0.13.1 &&

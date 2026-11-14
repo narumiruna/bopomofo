@@ -79,6 +79,8 @@ The review follow-up keeps the libchewing runtime and asset format unchanged.
 - New macOS dry-run cases cover retained v1 update/removal/restore, rejection of legacy new-build sources, bad legacy checksums, missing files, mixed layouts and invalid signatures. Commit `63736ef` passed [common CI 43580477403](https://github.com/narumiruna/bopomofo/actions/runs/43580477403), 5/5 jobs, and [Windows CI 43580477387](https://github.com/narumiruna/bopomofo/actions/runs/43580477387), 3/3 jobs. macOS passed 29 management dry-run cases, 127 adapter assertions and 124 C ABI assertions. Both Linux architectures passed all 12 CTests and both extended privacy profiles.
 - The external Codex security review reports that the paying account reached its usage limits. That review is blocked, not passed. The payer must restore quota or make an account-side credit decision. No billing setting was changed.
 
+A final review also found that a complete v2 package could retain v1 files. The v2 validator now rejects either legacy resource. Five added signed-layout cases cover every management action; the earlier partial-layout case remains. Native CI must verify the resulting 34 sandbox dry-run cases.
+
 No IME was installed, registered, enabled or removed. The sandbox tests do not use `--apply`. Installed desktop, corpus, Fcitx protocol and release restrictions remain unchanged.
 
 ## CNS11643 rebase — 2026-11-04 UTC
