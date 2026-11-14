@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, macos-14, windows-2022]
+        runner: [ubuntu-24.04, macos-15, windows-2022]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
@@ -28,6 +28,10 @@ jobs:
         if: runner.os == 'Windows'
         run: cargo build -p ime-windows --locked
       - run: cargo test --workspace --all-targets --locked
+      - name: Build release host Windows DLL for loader tests
+        if: runner.os == 'Windows'
+        run: cargo build -p ime-windows --release --locked
+      - run: cargo test --workspace --all-targets --release --locked
       - name: Offline release workflow tests
         if: runner.os == 'Linux'
         run: bash .github/tests/release-workflow.sh
@@ -55,7 +59,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Build isolated Linux environment
         run: docker build -t bopomofo-fcitx5-check -f platforms/linux/fcitx5/ci/Dockerfile platforms/linux/fcitx5/ci
-      - name: Fcitx5 build, ABI and headless contracts
+      - name: Fcitx5 v2 assets, ABI, headless contracts and privacy trace
         run: docker run --rm --mount "type=bind,source=$PWD,target=/src,readonly" bopomofo-fcitx5-check
 
 # This workflow does not install/register/enable the IME, run a desktop

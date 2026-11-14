@@ -220,9 +220,9 @@ impl ITfUIElementMgr_Impl for Manager_Impl {
     }
 }
 
-fn lexicon() -> Arc<Lexicon> {
+fn lexicon() -> Arc<Assets> {
     // Self-authored data. No files or installed resources are used.
-    Arc::new(Lexicon::parse("# bopomofo-lexicon-v1\nㄅㄚ\t八\t20\nㄅㄚ\t巴\t10\n").unwrap())
+    ime_test_support::assets("# bopomofo-lexicon-v1\nㄅㄚ\t八\t20\nㄅㄚ\t巴\t10\n")
 }
 
 fn manager() -> ComObject<Manager> {

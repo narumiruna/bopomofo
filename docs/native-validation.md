@@ -10,6 +10,79 @@ Rust tests、platform build、headless contract tests 與 desktop checks 是不�
 
 首次本機驗證與 CI commit `c6d2e2c` 的 source/build/fixture snapshot 包含 87 個路徑，SHA-256 為 `6de256861cf932740b1f0874e7b14133aae70737541c6823f05709f07145b2b8`。計算法為：以 `git ls-files --cached --others --exclude-standard -z` 列出 `.gitattributes`、Cargo manifests／lock、toolchain、`crates/`、`platforms/`、`fixtures/`、`.github/`，依路徑排序後，逐筆串接 `path + NUL + contents + NUL` 再取 SHA-256。
 
+## libchewing migration — 2026-11-14 UTC
+
+Branch `narumi/refactor/libchewing-engine` 從 `46da8ac` 全面改用 `chewing` 0.13.1、C ABI v2 與唯一 asset pipeline。以下是本輪證據，不沿用歷史成功紀錄。Source/build/fixture snapshot：126 paths，SHA-256 `8615b4a076138d5243e391555d6fd6d49fd8210e7c9efa37c9217cdc14fe6958`；計算法與精確範圍見 [benchmark method](benchmarks/README.md#identity-and-method)。Final snapshot `3c1cf95698192e4ecb02b0243675a707533efa68f45ead4a9756156c9f91a089` 只再修正兩份 Windows preflight scripts；runtime、measured CLI bytes 與 corpus 無差異，已獨立重算驗證。Timing snapshot 包含 PR review fixes、macOS runner／entrypoint 修正與原樣 AUTHORS 的狹義 whitespace-check rule。原先 `f0381dba…` 的 timing reports 已由 final-source rerun 取代。
+
+Host：Linux x86_64／WSL2 6.18.33.2、AMD Ryzen 9 7950X3D、Rust/Cargo 1.92.0。Docker SDK 為 Ubuntu 24.04、GCC 13.3、CMake 3.28.3、Fcitx5 5.1.7、xkbcommon 1.6.0、nlohmann_json 3.11.3。Source mount readonly，所有 Linux build 從空 temporary directory 開始。
+
+| Check | Result / scope |
+| --- | --- |
+| Baseline Rust / Linux | Workspace debug／release 各 95；Python 9；format／Clippy exit 0；原 C ABI v1 headless CTest 7/7。 |
+| Release offline | Host baseline 首次因缺 `jq` status 127 失敗。隔離容器補齊既有依賴後 baseline 與 final 均 20/20 passed；stub cargo／gh、無 network／remote writes。 |
+| Upstream discovery | 固定版 explicit memory editor、non-BMP、selection／commit／ack 與 embedded mini metadata，三個獨立 spike tests passed。 |
+| Final Rust | Format／Clippy exit 0；workspace debug／release 各 **74 passed**：CLI 36、core 16、FFI 6、Windows portable 16。舊 parser／decoder／index 的 41 個 core tests 隨實作移除，改以 16 個 upstream-boundary tests 與完整 replay 驗證，不保留第二套算法。 |
+| Replay | 四個 profiles、12 corpora／**484 events**：baseline 367、CNS 81、quality 17、Unicode 19。各自編譯 assets，手寫期待；debug／release passed。Unicode 保留完整 `𠀀é😀`、11 bytes／6 UTF-16 units，以四 readings 表示，另檢查 phrase 內部 byte cursor 5。 |
+| Probe / privacy | 20,000-event repeated-probe／actual parity；sentinel logger capture、compile-time log Off 與 memory-only user store。Final Docker `scripts/check-engine-privacy.sh` 的 debug／release initialization、handle、probe、selection、reset、drop markers 之間，file／network／read／write syscalls 均為零，controlled HOME 保持空白。不是所有路徑的形式化證明。 |
+| Assets / ABI | CLI asset pipeline 4、core asset/schema negatives 5、FFI 6；缺／額外／重複／traversal、bounds、UTF-8、hash／version、checksum-valid cycle／empty node／bad range、ownership、panic boundary、重複生命週期與一次性 commit 均 passed。V1 constructor 已刪除，v1 host version guard 必須拒絕 v2 library。 |
+| Linux v2 Release | Clean build，**12/12 CTests passed**：ABI、legacy rejection、四組 replay、wrong-profile rejection、default data、custom-source incremental rebuild、管理 dry-run 與 known-gap reproducer。 |
+| C++ ASan / UBSan | Clean Debug C++ build，leak detection／halt-on-error，**12/12 passed**；known-gap case 另跑 **1/1**。Rust release archive 與 system SDK libraries **未 instrumentation**。 |
+| Windows cross-check | x64／x86／ARM64 MSVC targets 各自 `cargo check --all-targets --locked` 與 Clippy `-D warnings` exit 0；不是 native link／load／desktop 證據。 |
+| PowerShell | Official 7.5.0 Linux amd64 container，5 個 scripts AST passed；portable asset preflight 的 valid package + 10 negatives passed，包含等長 checksum corruption 與 missing data license。未呼叫 Register／Unregister。原嘗試的版本專屬 image tag 不存在（125），改用實際解析為 7.5.0 的 `7.5-debian-12`，digest `sha256:7ab5bd5ca6f95a3351fa0c6a1205237d57048c94542355aab55519a0861a9b25` 後重跑成功。 |
+| Scripts / workflow / docs | 所有相關 Bash syntax、actionlint（不啟用選用 ShellCheck／Pyflakes）、local Markdown file links 與 whitespace checks passed。本輪 hosted native builds 已另列下表，不借用舊紀錄。 |
+| Default data | Pinned source／獨立 LGPL grants／notices 見 `data/SOURCES.md`、`data/libchewing/NOTICE.md`；160,440 entries 兩次 build bytes 相同，明確驗證 `你好` phrase、license 分離與 caller-supplied data 不被改授權。CNS 原始 bytes 不變。 |
+| Benchmarks | Python 9/9；三個 profiles 的兩次 canonical／asset builds、debug／release／repeat replay 與各兩次 100-repetition release benchmarks 全部 exit 0。Synthetic handle p95 **8.17–8.27 ms > 5 ms**，probe p95 1.14–1.44 µs；不符合 5 ms 目標。Default data 的八-event synthetic corpus 另列 report，不能代表產品 latency／品質。 |
+
+### Hosted checks after review fixes
+
+Final preflight revision `979a4256dd1f81f2cb02bee7cb867913f7876647` 的 [common run 43578330210](https://github.com/narumiruna/bopomofo/actions/runs/43578330210) **5/5 passed**，[Windows run 43578330207](https://github.com/narumiruna/bopomofo/actions/runs/43578330207) **3/3 passed**。新增的 source-metadata preflight checks 已在三個 native Windows targets 實際執行。下表 DLL hashes 屬前一個相同 runtime code 的 `9cc7379` builds，不假稱為不同 run 的 binary hashes。
+
+Commit `9cc73796f014dcc2015468e8d6f81ae6ca39aa6e` 的 [common PR run 43577618948](https://github.com/narumiruna/bopomofo/actions/runs/43577618948) **5/5 jobs passed**，[Windows PR run 43577618932](https://github.com/narumiruna/bopomofo/actions/runs/43577618932) **3/3 passed**。這是本輪 actual execution，不是 cross-check。
+
+| Runner / scope | Actual result |
+| --- | --- |
+| macOS 15.8.2 (24H232), arm64, image `macos-15-arm64/20261104.0514.1` | Rust debug/release 74 each；Swift native link、ABI v2、default bundle、plist、ad-hoc signature／strict verify、127 adapter assertions、124 actual C ABI assertions、16 sandbox management dry runs passed。Build evidence file 在 runner 產生；未上傳 native binary。沒有 IMK desktop activation。 |
+| Windows host workspace | Debug/release各86 tests，包括host DLL loader；format／Clippy passed。 |
+| Windows x64, x86/WOW64, ARM64 | 每個 target 在對應 native runner 完成debug/release DLL link、27 unit tests＋1 loader test per profile、asset build與preflight。未 registration／activation。 |
+| Ubuntu x86_64 / ARM64 | Workspace gates、fresh native Linux build、ABI v2、12/12 CTests、debug/release privacy trace passed。不是 desktop checks。 |
+
+| Windows target | Debug DLL SHA-256 | Release DLL SHA-256 |
+| --- | --- | --- |
+| x64 | `c04ec110d12d9c5dc8264b327d71833cc2b403be5136a0988634aa891ad89334` | `b761344679d1efe1e30e74d32d9ef379fce396bff80fe75204bdef83ec5dcc5f` |
+| x86 | `da7487cebfc1d8c478723eccb79dfe19f832db87ce5cde15ea44e852f3b7d0f7` | `aff2c5e66ddbb0930047d402a0f4d083700185217e16759e1d367d6352dfc671` |
+| ARM64 | `ee299118848504517f0c0f05922cfc35cc81d8def3b4752d54311cdc94848540` | `bc50a535b69397b0c8ad426c1872f280afc77dc40092f8e0221a3dd90a7468af` |
+
+Review 發現 Caps Lock chord 在 shortcut guard 前取消 composition，已修正並加入六個手寫 replay events，涵蓋 Latin mode 與 pending Chinese text。CMake custom source 未追蹤導致 stale package，已新增依賴與實際 edit→build→hash-change／entries=2 regression。macOS `ee12aec` SDK build 發現 `main.swift` 的舊 `LexiconResource` reference（exit 1）；已改為 `AssetResource`，並由上述 successful SDK run 重驗。這些 change-caused failures 均已修正，沒有移交為 external blocker。另修正 Windows preflight 必填 `data_version`／`source_sha256` 與 core schema 不一致；portable PowerShell 10 negatives passed，native CI 再驗證。
+
+可重跑入口見 README、三平台指南及 benchmark README。所有 input 都是 public synthetic fixtures，不擷取真實鍵盤。核對 node schema 後才使用上游 lazy iterator；這防止 hash 有效但結構損壞的 index 導致無界 traversal。Snapshot 重用一次上游 conversion，並正確映射 phrase 內部 scalar offset；沒有自研 runtime parser／decoder、Editor clone 或 keystroke replay。
+
+| Current local artifact | SHA-256 |
+| --- | --- |
+| Linux Release addon | `6afda751e3084a1239f4658ed6d20053081b22635a63837f7ddfb23e8c999f73` |
+| C++ ASan/UBSan addon | `60ecf880ba745aa8a882647c71632b58851494071b4e09574a47b42ce06fcec2` |
+| Rust release archive, both builds | `ba1c806886d66e8d0fdfb9fcd7e5a4d6540ad2eff7fd3053435b3de128c96f83` |
+| C ABI v2 header | `fde21c9e05c1e4d0bb4dd53384b851ff8b55aa8822ffb6c6252b3265aca5e246` |
+| Default dictionary / manifest | `0440c11a9e92bf09497a1c3014a8cc79bb9f552981d1feb29230f2449ea44439` / `6bb6c5d7022b335979077d5dfc65b5c6fa0439f0ada62447b4736204c7b1df6b` |
+
+Build-local prefix 會影響 addon bytes，不宣稱 native binary byte-reproducibility。本機 logs 在 ignored `target/libchewing-evidence/`；small metric reports 在 `docs/benchmarks/`。Native artifacts 不提交或發布。以下舊紀錄所引用同名 benchmark files，應讀 baseline `46da8ac` 的 Git history，不是本輪覆寫後的報告。
+
+**Failed / blocked / not run：** Final local required checks 沒有未修正的失敗。已量得 synthetic p95 超過 5 ms，保留為效能風險，不更改資料或次數掩蓋。Representative corpus、Taiwan 品質、installed native IME、application／display matrix 與 Fcitx index-only safety 仍 open。`800bc99` 的 Windows native push run [43576769964](https://github.com/narumiruna/bopomofo/actions/runs/43576769964) 三 target passed；common run [43576769912](https://github.com/narumiruna/bopomofo/actions/runs/43576769912) 的 Linux／Windows jobs passed，但 macOS 在任何 steps 執行前 cancelled，annotation 為 `The configuration 'macos-14-arm64-us-default' is not supported`。因此改用 `macos-15` 重跑相同 gates，不以取消代替成功。後續 current-run 結果另記；任何 code failure 均須修正。沒有 IME 安裝、註冊、啟用、移除、系統設定變更、tag、release dispatch 或 artifact publication。
+
+## PR #5 review follow-up
+
+The review follow-up keeps the libchewing runtime and asset format unchanged.
+
+- macOS management can validate a complete signed v1 resource layout for an existing installation or a rollback backup. New install and update sources still require v2. Restore validates the copied stage with the retained-bundle rule. Mixed layouts, bad checksums, invalid signatures and unrelated bundles remain rejected.
+- Replay tests reserve a unique parent directory. A Drop guard removes it after success or panic. The four repository-fixture tests pass in debug and release.
+- The privacy filter now includes positional and vectored reads/writes. A synthetic helper confirmed all eight added syscall names are traced. The debug/release engine traces still have no file/network/read/write operations between markers.
+- Local workspace tests pass: 75 debug and 75 release. Clippy, Bash syntax and whitespace checks pass. A fresh Linux container passes 12/12 CTests and both privacy profiles.
+- New macOS dry-run cases cover retained v1 update/removal/restore, rejection of legacy new-build sources, bad legacy checksums, missing files, mixed layouts and invalid signatures. Commit `63736ef` passed [common CI 43580477403](https://github.com/narumiruna/bopomofo/actions/runs/43580477403), 5/5 jobs, and [Windows CI 43580477387](https://github.com/narumiruna/bopomofo/actions/runs/43580477387), 3/3 jobs. macOS passed 29 management dry-run cases, 127 adapter assertions and 124 C ABI assertions. Both Linux architectures passed all 12 CTests and both extended privacy profiles.
+- The external Codex security review reports that the paying account reached its usage limits. That review is blocked, not passed. The payer must restore quota or make an account-side credit decision. No billing setting was changed.
+
+A final review also found that a complete v2 package could retain v1 files. The v2 validator now rejects either legacy resource. Five added signed-layout cases cover every management action; the earlier partial-layout case remains. Native CI must verify the resulting 34 sandbox dry-run cases.
+
+No IME was installed, registered, enabled or removed. The sandbox tests do not use `--apply`. Installed desktop, corpus, Fcitx protocol and release restrictions remain unchanged.
+
 ## CNS11643 rebase — 2026-11-04 UTC
 
 PR #3 從 `8392601b44d86fe2989f1b8d252eb64ed5c56d4e` rebase 到已合併 PR #4 的 `main` commit `8b0b7b2d8c4bac80d7af95102fb53cd50fa78941`。保留兩個原始 commits 的用途與全部九個 CNS data/license/notice blobs，與 rebase 前逐檔 bytes 相同。未重新下載或擴大資料來源。
@@ -403,13 +476,13 @@ sequenceDiagram
 
 | Responsible role | Prerequisite / required action | 尚未通過的 gate |
 | --- | --- | --- |
-| Windows tester / CI owner | 三架構 build／load／非註冊 tests 已通過；提供已授權的 installed TSF／app 環境。 | Registration、activation、實際 document edit session、candidate rendering 與各架構 desktop matrix 仍未驗證。 |
-| macOS tester | 授權使用 scoped 管理腳本安裝／啟用 bundle，依 macOS guide 操作與保存結果。 | 所有 installed native app／display checks 未驗證。 |
+| Windows build owner / tester | 先保存本輪三架構 native build／load／非註冊 CI 結果；再提供另行授權的 installed TSF／app 環境。歷史 pass 不代替本輪。 | Registration、activation、實際 document edit session、candidate rendering 與各架構 desktop matrix 仍未驗證。 |
+| macOS build owner / tester | 先以本輪 source 執行 `platforms/macos/scripts/test.sh` 並保存 bundle／contract hashes；再另行授權 scoped 安裝／啟用與 native matrix。 | 所有 installed native app／display checks 未驗證。 |
 | Linux tester / framework owner | 提供 X11／Wayland session，驗證各 frontend，並解決或證明 candidate request 的 generation／ordering 契約。 | Desktop matrix 與 stale rendered-click 正確性未通過。 |
-| Data owner / rights holder | 依 `data/SOURCES.md` 提供逐檔 license chain、固定 snapshots、conversion／redistribution grants、notices 與來源選定。一般批准不能補足 rights-holder grant。 | 正式 importer、phrase lexicon、真實 phrase frequency 與資料散布保持 blocked。 |
+| Data owner / rights holder | 所選 libchewing `word.csv`／`tsi.csv` 的原始 snapshots、明示 LGPL grants、builder、notices 已完成；其他 candidates 仍依 `data/SOURCES.md` 取得逐檔權利。一般批准不能補足 grant。 | 不擴大匯入範圍。Taiwan phrase 品質、現代實測 frequency 與 product release review 仍 open；不得把已完成的所選 data gate 與其他來源混為一談。 |
 | Corpus / validation owner | 提供有權使用、符合 Taiwan 選樣標準的 corpus、人工核對的 reading／replay，以及獨立 benchmark partition。 | Synthetic reports 不解除正式資料與代表性 corpus 的 p95 < 5 ms gate。 |
 | Fcitx framework / client owner | 依 `docs/linux.md` 的最小報告提供可驗證的 generation／render acknowledgement／ordering 契約或修正；替代設計須 project owner 另行核准。 | Stale rendered-click safety 是已知 correctness gap；headless reproducer 通過不解除 Linux acceptance gate。 |
 | Release owner | 依 `docs/releases.md` 取得指定 commit／version／tag、runner 使用與 remote writes 的 scoped authorization，再保存 hosted run／jobs／source-only draft／notes 證據。 | 首次 hosted Release 與 draft inspection 保持 unverified。本輪不 dispatch、推 tag 或建立 release。 |
-| Release owner | 在適用 gates 通過後另行授權 native binary distribution、signing／notarization 及 publication。 | 不發布，也不提供產品支援聲明；source PR 與 coding plan 完成不代表產品驗收。 |
+| Release owner | 在適用 gates 通過後，完成 LGPL／data notices、complete corresponding source、static-link relinking review，再另行授權 native binary distribution、signing／notarization 及 publication。 | 不發布，也不提供產品支援聲明；source PR 與 coding plan 完成不代表產品驗收。 |
 
 這些限制未解除前，保留 PLAN.md 的未完成項目，不以文件完成代替實作與驗收。

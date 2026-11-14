@@ -4,7 +4,7 @@ import InputMethodKit
 let application = NSApplication.shared
 application.setActivationPolicy(.accessory)
 // Force the resource load before the first input context or key callback.
-if case .failure(let error) = LexiconResource.result {
+if case .failure(let error) = AssetResource.result {
     reportError(error)
     exit(1)
 }

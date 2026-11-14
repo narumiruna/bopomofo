@@ -1,88 +1,72 @@
-//! Bounded activation-time loading of an installation's lexicon artifact.
-use ime_core::{Lexicon, lexicon::MAX_SOURCE_BYTES};
-use sha2::{Digest, Sha256};
-use std::io::Read;
-use std::path::Path;
-use std::sync::Arc;
-
+//! Bounded activation-time reads of one explicit v2 asset package.
+use ime_core::{
+    Assets,
+    assets::{AssetBuffer, DICTIONARY_NAME, MANIFEST_NAME, MAX_ASSET_BYTES, MAX_MANIFEST_BYTES},
+};
+use std::{io::Read, path::Path, sync::Arc};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ResourceError {
     Read,
     TooLarge,
-    Checksum,
-    Lexicon,
+    Assets,
 }
-
-fn read_bounded(reader: impl Read, maximum: usize) -> Result<String, ResourceError> {
-    let mut text = String::new();
+fn read_bounded(reader: impl Read, max: usize) -> Result<Vec<u8>, ResourceError> {
+    let mut bytes = Vec::new();
     reader
-        .take(maximum as u64 + 1)
-        .read_to_string(&mut text)
+        .take(max as u64 + 1)
+        .read_to_end(&mut bytes)
         .map_err(|_| ResourceError::Read)?;
-    if text.len() > maximum {
+    if bytes.len() > max {
         return Err(ResourceError::TooLarge);
     }
-    Ok(text)
+    Ok(bytes)
 }
-
-fn validate(source: &str, checksum: &str) -> Result<Arc<Lexicon>, ResourceError> {
-    if checksum.trim().len() != 64
-        || checksum.trim() != format!("{:x}", Sha256::digest(source.as_bytes()))
-    {
-        return Err(ResourceError::Checksum);
-    }
-    let lexicon = Lexicon::parse(source).map_err(|_| ResourceError::Lexicon)?;
-    if lexicon.entries().is_empty() {
-        return Err(ResourceError::Lexicon);
-    }
-    Ok(Arc::new(lexicon))
+fn validate(data: &[u8], manifest: &[u8]) -> Result<Arc<Assets>, ResourceError> {
+    Assets::verify(
+        manifest,
+        &[AssetBuffer {
+            name: DICTIONARY_NAME,
+            data,
+        }],
+    )
+    .map(Arc::new)
+    .map_err(|_| ResourceError::Assets)
 }
-
-pub(crate) fn load(directory: &Path) -> Result<Arc<Lexicon>, ResourceError> {
-    let source = read_bounded(
-        std::fs::File::open(directory.join("lexicon.tsv")).map_err(|_| ResourceError::Read)?,
-        MAX_SOURCE_BYTES,
+pub(crate) fn load(directory: &Path) -> Result<Arc<Assets>, ResourceError> {
+    let data = read_bounded(
+        std::fs::File::open(directory.join(DICTIONARY_NAME)).map_err(|_| ResourceError::Read)?,
+        MAX_ASSET_BYTES,
     )?;
-    let checksum = read_bounded(
-        std::fs::File::open(directory.join("lexicon.sha256")).map_err(|_| ResourceError::Read)?,
-        66,
+    let manifest = read_bounded(
+        std::fs::File::open(directory.join(MANIFEST_NAME)).map_err(|_| ResourceError::Read)?,
+        MAX_MANIFEST_BYTES,
     )?;
-    validate(&source, &checksum)
+    validate(&data, &manifest)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-    fn source_is_bounded_and_invalid_encoding_fails() {
-        assert_eq!(read_bounded("abc".as_bytes(), 3), Ok("abc".into()));
+    fn bounded_binary_reads() {
+        assert_eq!(read_bounded([0xff].as_slice(), 1), Ok(vec![0xff]));
         assert_eq!(
-            read_bounded("abcd".as_bytes(), 3),
+            read_bounded(b"abcd".as_slice(), 3),
             Err(ResourceError::TooLarge)
         );
-        assert_eq!(read_bounded([0xff].as_slice(), 3), Err(ResourceError::Read));
     }
-
     #[test]
-    fn missing_artifact_checksum_mismatch_and_invalid_lexicon_fail_closed() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    fn missing_corrupt_and_mixed_version_assets_fail_closed() {
         assert!(matches!(
-            load(&root.join("no-such-installation")),
+            load(Path::new("no-such-assets-directory")),
             Err(ResourceError::Read)
         ));
-        let source = std::fs::read_to_string(root.join("../../fixtures/lexicon.tsv")).unwrap();
-        let checksum = format!("{:x}", Sha256::digest(source.as_bytes()));
-        assert!(!validate(&source, &checksum).unwrap().entries().is_empty());
+        let (mut data, manifest) = ime_test_support::parts("ㄧ\t一\t1\n");
+        assert_eq!(validate(&data, &manifest).unwrap().entries, 1);
+        data[0] ^= 1;
         assert!(matches!(
-            validate(&source, &"0".repeat(64)),
-            Err(ResourceError::Checksum)
+            validate(&data, &manifest),
+            Err(ResourceError::Assets)
         ));
-        for source in ["wrong header\n", "# bopomofo-lexicon-v1\n"] {
-            let checksum = format!("{:x}", Sha256::digest(source.as_bytes()));
-            assert!(matches!(
-                validate(source, &checksum),
-                Err(ResourceError::Lexicon)
-            ));
-        }
+        assert!(matches!(validate(&data, b"{}"), Err(ResourceError::Assets)));
     }
 }

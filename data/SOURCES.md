@@ -2,7 +2,7 @@
 
 ## Status and policy
 
-使用者於 **2026-10-29** 指定記錄 CNS11643 與 McBopomofo，並核准先使用 CNS11643 補充 Taiwan 正體中文單字。CNS11643 的指定字區已完成資料授權查核與匯入；McBopomofo 仍只調查，不匯入。正式 phrase lexicon、phrase frequency 與 release approval 仍未完成。
+使用者於 **2026-10-29** 指定記錄 CNS11643 與 McBopomofo，並核准先使用 CNS11643 補充 Taiwan 正體中文單字。CNS11643 的指定字區已完成資料授權查核與匯入；McBopomofo 仍只調查，不匯入。本輪另引入下節列明的 libchewing default data；正式 phrase 品質、代表性 frequency／corpus 驗證與 release approval 仍未完成。
 
 初次調查於 **2026-10-28 UTC** 以 `curl` 查閱來源、license 與資料格式。供檢查的下載檔只放在 repository 外的 temporary directory，當時未匯入外部資料。
 
@@ -14,15 +14,30 @@
   - 自製 fixtures 依 repository 的 AGPL policy 管理，不另加新的 license。
   - 外部資料保留各自的 license 與 notices；不得因為放入 AGPL repository 就宣稱其已改以 AGPL 授權。
 - 允許由 `ime-core` 採用 libchewing，整合限制見 [Engine adoption policy](../docs/architecture.md#engine-adoption-policy)。
-  - libchewing 配套詞庫尚未核准匯入或散布，須獨立核對資料來源、授權、固定版本、checksum 與 notices。
+  - 本次遷移只採用下節列明的 libchewing `word.csv`／`tsi.csv`；其他配套詞庫仍須獨立核對來源、授權、版本與 notices。
   - 此決策不核准採用 McBopomofo、`librime` 或其他輸入引擎，也不解除既有候選資料的匯入限制。
 - 來源下載與查核不在 runtime 進行。Keystroke processing 完全離線，不下載資料，也不記錄或傳送輸入內容。
 - Import 前須核對**資料本身**及上游來源的權利。Engine license、公開下載、GitHub license badge 或 checksum 都不能單獨證明資料的轉換與散布權利。
+
+## libchewing default data
+
+2026-11-14 UTC，依本次使用者授權執行 libchewing 遷移計畫。逐檔查核所選 data 的明示授權後，保留 `data/libchewing/source/word.csv`／`tsi.csv` 的原始 bytes，作為預設開發詞組資料。這不核准其他來源，也不代表 Taiwan reading 品質、實測詞頻或產品驗收完成。
+
+- Engine 固定 crates.io `chewing` 0.13.1，archive SHA-256 `0fc533f0b524ce84ec20fe9025169e64c866df84a50b497acb6a62f6dccac264`，license `LGPL-2.1-or-later`。
+- 所選 engine tag `v0.13.1` 對應 `f071d2e95c531cc39bb4325cd5a5d0e1d51daef8`，其 data submodule revision 是 `bfba418ea8a4bd2fe10b9bf80b4bf81ec01af5f4`。
+- 原始來源為 `https://codeberg.org/chewing/libchewing-data/raw/commit/bfba418ea8a4bd2fe10b9bf80b4bf81ec01af5f4/dict/chewing/word.csv` 與同目錄 `tsi.csv`。兩檔各自明示 `Copyright (c) 2025 libchewing Core Team`、`LGPL-2.1-or-later`；不是以 engine license 推定 data license。
+- LGPL §§1–2 允許複製、改作及散布，須保留 notices、適用 license 與 corresponding source。完整原始檔、版本、SHA-256、轉換規則及 obligations 見 [libchewing notices](libchewing/NOTICE.md) 與 [COPYING](libchewing/COPYING)。
+- 僅 trim reading whitespace、以上游 parser 正規化、同 reading／text 取原始最大 score，再用固定版 TrieBuilder 編譯。`tsi.csv` 的 `博客來`／`新媒體` reading 有前置空白；此轉換明確移除，不猜讀音。Source snapshots 不改寫。
+- Upstream variants 與零 scores 保留；不宣稱所有 entries 都是 Taiwan-only forms，或 scores 是現代實測 phrase frequency。合併後 160,440 entries，最多 215 個同 reading 候選，最長 11 音節。
+- Engine 內嵌 mini.dat 的獨立 metadata 明示 LGPL-2.1-or-later 與 2022 libchewing Core Team copyright，版本與 hash 見 notices；runtime 不使用便利 constructor 或內嵌 fallback。
+- 不匯入 MOE、`chewing.dat`、其他 dictionaries、上游 symbols／abbreviations 或來源 archives。編譯產物只放 build directory，不提交 binary。
+- 專案維持 AGPL-3.0-only；外部 engine／data 不改成 AGPL-only。Native static binary 散布前，release owner 仍須完成 LGPL relinking／source 交付，不以附 license 或 lockfile 代替。
 
 ## Source register
 
 | ID | 可提供的內容 | 條款查核結果 | 本專案狀態 |
 | --- | --- | --- | --- |
+| `libchewing-bfba418` | Selected upstream character／phrase readings and original scores | `word.csv`／`tsi.csv` 各有 LGPL-2.1-or-later grant，保留原始 headers、COPYING、authors 與 notices | **本輪選用的 default development data**；160,440 entries。不是 Taiwan quality、代表性效能或 binary release approval。 |
 | `cns11643-20261028` | Taiwan 常用／次常用字的直接 Zhuyin 與 Unicode mapping | 官方資料集明確提供資料授權；選用 OGDL-Taiwan-1.0，保留 attribution 與完整條款 | **核准用於本次單字補充**；13,052 字、16,496 字音 pairs，另保留五筆自製詞組。不是正式 phrase／frequency 資料，也未發布。 |
 | `fixture-local` | 自製字、詞、讀音及人工設定的 ranking scores | 不取自外部 dictionary 或 corpus；依現有 AGPL policy 管理 | 允許用於開發；不是產品詞庫或真實詞頻證據。 |
 | `unicode-unihan-17` | Character readings；少量 character/pronunciation frequencies | Unicode License V3 明確允許修改與散布，須保留 notice | **Candidate，未核准匯入**；可供 character fallback 評估，不足以取代 phrase lexicon。 |
@@ -63,7 +78,7 @@
 | Properties archive | <https://data.cns11643.gov.tw/opendata/Properties.zip>；SHA-256 `91214ba96946e0ea41d4cb7b709c036f3301dd4a621d9a0fa6ad2ccf1db6d297`。 |
 | Mapping archive | <https://data.cns11643.gov.tw/opendata/MapingTables.zip>；SHA-256 `605cadc2074cb5399bf03a268ab1f66a52384f08acb27021178c13d041cb87d2`。 |
 | Input fields | `CNS_phonetic.txt` 的 CNS code／Zhuyin；`Unicode/CNS2UNICODE_Unicode BMP.txt` 的 CNS code／Unicode scalar。 |
-| Conversion | 固定字區 extraction、碼位 join、core syllable 驗證、聲調正規化、人工 fallback score、固定排序、canonical TSV。保留多讀音，不推測詞組讀音。 |
+| Conversion | 固定字區 extraction、碼位 join、上游 syllable parsing 與既有 CNS eligibility rule、聲調正規化、人工 fallback score、固定排序、canonical TSV。保留多讀音，不推測詞組讀音。 |
 | Notices / reproducibility | [CNS guide](cns11643/README.md)、[attribution](cns11643/NOTICE.txt)、[完整條款](cns11643/LICENSE.txt)、[retained source manifest](cns11643/source/manifest.json) 與 [build report](cns11643/build.json)。 |
 | Output | [lexicon.tsv](cns11643/lexicon.tsv)：16,501 entries、311,786 bytes；SHA-256 `f279ff2faa8bc40814e300253cda97c162003a0b6650fdfa0484f4075d0b300a`。 |
 
@@ -311,4 +326,4 @@ README 記載 counts 由 1998 年收集的 Taiwan web pages 抽樣 1,200,000 頁
 5. 驗證 syllables、tone、重複 entries、缺失 reading 及無效 score。不得靜默為 phrase 猜測讀音，或把不同來源的 counts 當成可直接比較的 frequency。
 6. 保存 data notices，並查核產物的 license obligations 與現有 AGPL policy。取得 release 授權後才可發布。
 
-本次核准只涵蓋上述 CNS11643 單字補充、既有 importer、notices 與固定產物。下列 production 項目仍 blocked：可供產品使用且權利完整的 Traditional Chinese phrase lexicon、適合 Taiwan 使用情境的 phrase frequency、這些來源的完整 notice bundle，以及可重建的正式 phrase／frequency data artifact。Core 開發可用自製 fixture 與核准的 CNS11643 補充繼續；產品品質、代表性 benchmark 與正式資料散布驗收不能據此通過。
+已選用範圍包括上述 CNS11643 supplement、自製 fixtures，以及本輪列明的 libchewing `word.csv`／`tsi.csv`。所選 libchewing files 的明示 grant、source snapshots、轉換與 notices 已保存；不得以其他 candidates 的未解項否定這次已完成的逐檔查核，也不得把這次查核推及其他 files。Taiwan phrase 品質、代表性 corpus／frequency、product benchmark、binary distribution obligations 與 release approval 仍未完成。其他來源繼續依各自 blocked／candidate 狀態處理。

@@ -2,9 +2,9 @@
 
 ## Status
 
-The addon builds on **Linux aarch64, Ubuntu 24.04, Fcitx5 5.1.7** in an isolated Docker container. C++ ABI, shared replay, and headless Fcitx API contract tests pass. This is **not** a desktop integration result.
+The addon uses libchewing 0.13.1 through C ABI v2. Build, ABI, asset and headless test results are recorded per source and CPU in [native-validation.md](native-validation.md). These are **not** desktop integration results.
 
-No IME was installed, enabled, or removed. No host settings were changed. All X11, Wayland, application, and x86_64 desktop combinations remain **unverified**. The fixture lexicon is not a production lexicon. See [native-validation.md](native-validation.md) for the project evidence register.
+No IME was installed, enabled, or removed. No host settings were changed. All X11, Wayland, application, and x86_64 desktop combinations remain **unverified**. The upstream default data and separate fixtures do not establish product reading quality. See [native-validation.md](native-validation.md) for the project evidence register.
 
 **Open P6 blocker:** Fcitx5 5.1.7 DBus `SelectCandidate(int)` has no render generation. A delayed client-side UI index is resolved against the current list. Captured `CandidateWord` guards do not protect this path. The independent `known_gap_reproduced_dbus_stale_rendered_index` CTest reproduces the known gap; it is not a safety pass. Source checks of 5.1.23 and the pinned GTK/Qt clients found no generation-aware selection or sufficient ordering guarantee. See the [minimal upstream report](#known-dbus-selection-gap) below. P6 and native acceptance remain open.
 
@@ -12,7 +12,7 @@ No IME was installed, enabled, or removed. No host settings were changed. All X1
 
 - `platforms/linux/fcitx5/src/addon.cpp` implements `fcitx::InputMethodEngine`.
   - A registered `FactoryFor<ContextProperty>` gives each input context its own Rust `Engine`. The property does not copy composition or mode to another context.
-  - The addon reads the installed lexicon and its SHA-256 manifest once at creation. It verifies the checksum through the C ABI, validates the data, and keeps immutable source bytes. Missing, malformed, or mismatched data prevents addon creation. This checks pinned integrity, not authenticity. Each new context passes those bytes to Rust. Key handling does not open files.
+  - The addon reads bounded `dictionary.dat` and `assets.json` once at creation. C ABI v2 checks engine/builder identity, filename, length, SHA-256 and bounded dictionary structure. Missing, malformed, mixed-version or mismatched data prevents addon creation. This checks integrity, not authenticity. Each new context passes verified memory bytes to Rust; it does not use a fallback dictionary path. Key handling does not open files.
 - `src/keymap.cpp` loads a fixed US XKB map at addon creation.
   - Physical XKB keycodes select level 0 US printable characters. Actual native modifier/action symbols take priority. A US Caps/Control/action position does not override a remapped printable symbol. Fcitx XIM uses X11 keycodes. Its Wayland IM frontends add the evdev offset of 8 before creating a key event.
   - A code-less event has only a US keysym fallback. A non-US layout without physical keycodes is not verified.
@@ -20,7 +20,7 @@ No IME was installed, enabled, or removed. No host settings were changed. All X1
   - Native Shift state is context-local. The normalizer tracks both physical sides and delivers only the first aggregate press and final release to core. Other physical Shift transitions remain pass-through observations. This converts X11 pre-release masks without implementing gesture rules.
   - Composition reset, focus, and capability cancellation do not erase physical Shift state. Native release or a native no-Shift mask resynchronizes it. A second side pressed while another side remains held cannot rearm a gesture cancelled by Reset.
   - Shift-alone and Caps Lock mode changes are core rules. Caps Lock means the logical `caps_lock` key event, not the host LED state.
-- Core alone parses Zhuyin, decodes text, moves candidates, pages, and selects digits.
+- The shared libchewing-backed core owns Zhuyin input, conversion, candidate movement, pages and digit selection.
   - The native candidate list displays the core page of at most 9 items. Its cursor is `candidate_index - page * 9`. Core indices are absolute.
   - Native page buttons send `page_up` or `page_down` to core. They do not change a local candidate page.
   - Selection through a captured `CandidateWord` sends its `generation` and absolute index to core. Core rejects a stale captured token. A context/engine lifetime guard also rejects callbacks after replacement or destruction. These checks do not supply the missing generation on the DBus index-only path.
@@ -53,7 +53,7 @@ Official Fcitx5 5.1.7 sources checked for this implementation:
 The tested Ubuntu 24.04 build image installs these packages:
 
 ```text
-build-essential ca-certificates cmake curl ninja-build pkg-config
+build-essential ca-certificates cmake curl git jq strace ninja-build pkg-config
 libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev
 libxkbcommon-dev nlohmann-json3-dev
 ```
@@ -76,7 +76,7 @@ ctest --test-dir target/fcitx5 --output-on-failure
 
 CMake runs `cargo build --locked --release -p ime-ffi` into the build directory. It uses the C header from the same checkout. It rejects cross-compilation and runs an ABI version executable before it links the addon. The addon also compares `bpm_abi_version()` with `BPM_ABI_VERSION` at runtime.
 
-Artifacts are `target/fcitx5/libbopomofo-dev.so`, the two generated `.conf` files, `lexicon.tsv`, and `lexicon.sha256`. The default source is `fixtures/lexicon.tsv`. To use different approved data, set `-DBOPOMOFO_LEXICON=/absolute/path/to/lexicon.tsv`. CMake copies it into the build directory and writes a manifest with 64 lowercase SHA-256 digits plus LF. The compiled runtime path is the configured prefix plus `share/fcitx5/bopomofo-dev/lexicon.tsv`; do not relocate an installed prefix without rebuilding.
+Artifacts are `target/fcitx5/libbopomofo-dev.so`, two generated `.conf` files, and `target/fcitx5/assets/`. The asset directory contains `dictionary.dat`, `assets.json` and six separate project/engine/data notice/license files. Default source is `data/libchewing/source`. Use `-DBOPOMOFO_ASSET_SOURCE=/absolute/path/to/approved.tsv` for a separate authoring profile. CMake calls the offline builder and verifies the result. The compiled runtime directory is the prefix plus `share/fcitx5/bopomofo-dev`; do not relocate an installed prefix without rebuilding.
 
 If no prefix is supplied, CMake defaults to an isolated `bopomofo-fcitx5-dev` directory inside the build tree, not `/usr` or `/usr/local`. Build and CTest do not run an install target.
 
@@ -92,41 +92,29 @@ docker run --rm \
   bopomofo-fcitx5-check
 ```
 
-The base Ubuntu image is pinned by digest in `ci/Dockerfile`. The build downloads development tools and Cargo dependencies; input processing itself is offline. Outputs stay in the ephemeral container. `ci/check.sh` builds, runs CTest, and checks shell syntax. It does not run an IME daemon or installation command.
+The base Ubuntu image is pinned by digest in `ci/Dockerfile`. The build downloads development tools and Cargo dependencies; input processing itself is offline. Outputs stay in the ephemeral container. `ci/check.sh` builds, runs all CTests, checks debug/release engine privacy with `strace`, and checks shell syntax. It does not run an IME daemon or installation command.
 
 `ci/linux-headless.yml.in` is an inactive reference snippet. The active `.github/workflows/checks.yml` runs separate Ubuntu x86_64 and ARM64 jobs. Both passed at `f65a705` in [run 40652597435](https://github.com/narumiruna/bopomofo/actions/runs/40652597435). These are headless build/ABI/contracts, not desktop tests.
 
-## Test evidence and limits
+## Current checks and limits
 
-| Check | Actual result |
-| --- | --- |
-| Ubuntu 24.04 / Linux aarch64 / GCC 13.3 / CMake 3.28.3 / Rust 1.92.0 | Addon and contract executable built with warnings as errors. |
-| Fcitx5 5.1.7 / xkbcommon 1.6.0 / nlohmann_json 3.11.3 | Linked into an ELF64 AArch64 addon with `--no-undefined`. Factory symbol exported; Rust ABI symbols remain private. |
-| Build-time and CTest ABI version | Passed with header/library version 1. |
-| C++ ABI/replay/headless Fcitx API contract | The nine shared fixture cases use the 39-entry lexicon; the CNS replay uses its own verified lexicon in a separate CTest. Includes checksum tampering/missing manifest, 100 repeated independent handle pairs, invalid event/UTF-8/null input, read-only probe, Unicode byte cursor, one-shot commit, native candidate page/digit/click, captured stale selection/pager, lifecycle, reset while Shift remains held, Enter aliases, remapped Ctrl/Escape/Caps positions, and immediate Sensitive-only capability cancellation without a key. |
-| C++ AddressSanitizer + UndefinedBehaviorSanitizer | Current CNS rebase: clean Debug C++ build and CTest 7/7 passed with leak detection and halt-on-error. The independent known-gap case also reproduced the gap, 1/1. Rust staticlib and system SDK libraries were not sanitizer-instrumented. |
-| Install/uninstall dry-run and Bash syntax | Passed. No apply operation ran. |
-| DBus delayed rendered-index selection | `known_gap_reproduced_dbus_stale_rendered_index`: known gap reproduced by the existing controlled current-list lookup model. Not an end-to-end native test or safety pass; P6 remains blocked. |
-| Linux x86_64 build | Passed: native Ubuntu 24.04 CI build/ABI/4 CTests at `f65a705`. No desktop checks. |
-| Native addon load, X11/Wayland, toolkit/application integration | Unverified. No desktop session ran. |
+CMake registers **12 CTests**: ABI v2, rejection by a v1 host, baseline adapter contracts, the independent known-gap reproducer, CNS replay, wrong-profile rejection, quality replay, Unicode replay, default-data validation, custom-source incremental rebuild, and two management dry runs.
 
-CMake registers seven CTests: ABI version, the original adapter contracts, the independent known-gap reproducer, CNS replay, rejection of CNS replay with the wrong lexicon, and the two management dry runs. It removes `cns11643.jsonl` from the legacy fixture glob, not from coverage. Run the registered pairs with CTest:
-
-```bash
-ctest --test-dir target/fcitx5 --output-on-failure
-```
-
-The test-only `--replay-only` mode accepts a verified lexicon and its matching JSONL cases without running fixture-specific native API assertions. For a direct CNS replay check:
+All four replay profiles use their own compiled assets. The baseline has nine files / 367 events; CNS has 81, quality 17 and Unicode 19. The 484 total events retain manual expectations. `--replay-only` takes dictionary and manifest paths followed by matching JSONL files; it does not generate expected output.
 
 ```bash
 target/fcitx5/bopomofo_contract --replay-only \
-  target/fcitx5/cns-lexicon.tsv target/fcitx5/cns-lexicon.sha256 \
-  fixtures/cns11643.jsonl
+  target/fcitx5/cns-assets/dictionary.dat target/fcitx5/cns-assets/assets.json fixtures/cns11643.jsonl
+bash scripts/check-engine-privacy.sh
 ```
 
-Do not pass the complete `fixtures/*.jsonl` glob with one lexicon: the CNS case requires different data. The negative CTest is expected to reject the 39-entry lexicon.
+The privacy script requires Cargo, jq and strace. It checks initialization, events, probe, selection, cancellation and drop between fixed markers with an empty controlled HOME. No traced file/network/read/write operation is allowed in that region. The input is synthetic; this is not a trace of desktop typing.
 
-Each record supplies `event` and an `expect` subset of the core output. The runner compares expected fields; it does not regenerate expectations. Its mock input contexts call real Fcitx library APIs. A capability test calls the exact registered watcher handler directly because the standalone manager has no Instance event bus. These tests do not exercise a frontend, compositor, daemon addon loader, or application. Core tests, this platform build, and native desktop checks are separate evidence classes.
+Clean Release and Debug C++ ASan/UBSan builds must run the same 12 CTests. Leak detection and halt-on-error are enabled. The independent known-gap case also runs alone. **Rust and system SDK libraries are not sanitizer-instrumented.** See current hashes and results in the validation register.
+
+The mocks use real Fcitx APIs but do not exercise a daemon, DBus transport, compositor, native loader or application. Capability tests call the registered watcher directly because the standalone manager has no Instance event bus. Exit 0 from the known-gap reproducer means the gap still occurs, not that stale rendered clicks are safe.
+
+### Historical pre-migration pairing record
 
 ### CNS replay pairing: 2026-10-29
 
@@ -169,7 +157,7 @@ docker run --rm \
   '
 ```
 
-The same CTest command works with the normal build directory in place of `/tmp/fcitx5-gap`. The executable also accepts `--known-gap-reproduced lexicon-path checksum-path`.
+The same CTest command works with the normal build directory in place of `/tmp/fcitx5-gap`. The executable also accepts `--known-gap-reproduced dictionary-path manifest-path`; use the separately compiled baseline profile.
 
 1. Open `ㄅㄚ` candidates and advance to page 1. Capture the rendered list and page-relative index 0, whose text is `豝`.
 2. Reset the context. Open the new `ㄅㄚ` list at page 0. Current index 0 is now `八`.
@@ -276,14 +264,20 @@ bash platforms/linux/fcitx5/scripts/install.sh target/fcitx5
 bash platforms/linux/fcitx5/scripts/uninstall.sh target/fcitx5
 ```
 
-Only an authorized operator may append `--apply`. The scripts refuse root, symlinks, a prefix outside `HOME`, or a prefix whose final component is not `bopomofo-fcitx5-dev`. Installation refuses overwrites. Removal needs the project ownership marker and deletes only these five files and that marker:
+Only an authorized operator may append `--apply`. The scripts refuse root, symlinks, a prefix outside `HOME`, or a prefix whose final component is not `bopomofo-fcitx5-dev`. Installation refuses overwrites. Removal needs the project ownership marker and deletes only the 11 package files and that marker:
 
 ```text
 lib/fcitx5/libbopomofo-dev.so
 share/fcitx5/addon/bopomofo-dev.conf
 share/fcitx5/inputmethod/bopomofo-dev.conf
-share/fcitx5/bopomofo-dev/lexicon.tsv
-share/fcitx5/bopomofo-dev/lexicon.sha256
+share/fcitx5/bopomofo-dev/dictionary.dat
+share/fcitx5/bopomofo-dev/assets.json
+share/fcitx5/bopomofo-dev/Project-LICENSE.txt
+share/fcitx5/bopomofo-dev/Engine-LICENSE.txt
+share/fcitx5/bopomofo-dev/Engine-AUTHORS.txt
+share/fcitx5/bopomofo-dev/Engine-NOTICE.txt
+share/fcitx5/bopomofo-dev/Data-LICENSE.txt
+share/fcitx5/bopomofo-dev/Data-NOTICE.txt
 .bopomofo-dev-owned
 ```
 
@@ -319,25 +313,27 @@ A Wayland result is specific to its compositor and protocol. A GTK module result
 
 ### Unicode fixture staging
 
-Use the self-authored [Unicode lexicon](../fixtures/unicode/lexicon.tsv) and [11-record replay](../fixtures/unicode/cases.jsonl) for the Unicode native check. Keep this staging build separate from the default lexicon build:
+Use the self-authored [Unicode lexicon](../fixtures/unicode/lexicon.tsv) and [19-record replay](../fixtures/unicode/cases.jsonl) for the Unicode native check. Keep this staging build separate from the default lexicon build:
 
 ```bash
 cmake -S platforms/linux/fcitx5 -B target/fcitx5-unicode -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
-  "-DBOPOMOFO_LEXICON=$PWD/fixtures/unicode/lexicon.tsv"
+  "-DBOPOMOFO_ASSET_SOURCE=$PWD/fixtures/unicode/lexicon.tsv"
 cmake --build target/fcitx5-unicode --parallel 2
 ```
 
-These commands only build artifacts. They do not install or activate an IME. The normal `adapter_contract` uses the default lexicon's replay expectations; do not run that suite with this one-entry Unicode lexicon. An authorized native tester must record and use the matching Unicode build and lexicon hashes for the check below.
+These commands only build artifacts. They do not install or activate an IME. CTest builds its separate baseline/CNS/quality/Unicode profiles; those pairings do not change the staged runtime profile. Use the matching source, dictionary and manifest hashes for native checks. An authorized native tester must record and use the matching Unicode build and lexicon hashes for the check below.
 
 ### Checks in every matrix cell
+
+For steps 2–4, explicitly stage the baseline with `-DBOPOMOFO_ASSET_SOURCE=/absolute/path/to/fixtures/lexicon.tsv`. Do not use the upstream default package for baseline candidate counts. Test the default dataset separately with the public `s u 3 c l 3 Enter Enter` phrase case and retain its own hashes.
 
 Use only public, self-authored fixture input. Do not capture private keystrokes, preedit, or committed text in diagnostics.
 
 1. Load the addon through Fcitx's native loader. Select **Bopomofo Development** in the isolated test profile. Record build identity and library versions.
 2. Type `1 8 Space`: show `八` as preedit, with a byte-correct end cursor. Type Enter: commit once and clear preedit. Repeat Enter: no second commit.
 3. Type `1 8 Space Down`: show candidates 1–9. Page Down: show candidates 10–12 with page-relative labels. Press `1`: select `豝`, without commit. Enter commits it once. Repeat with native mouse selection and native page buttons.
-4. Type `s u 3 c l 3`: show `你好`. Use Home, Right, Backspace, and Delete. Verify caret, native rendering, and the same core replay results. In the separate [Unicode staging build](#unicode-fixture-staging), type `u Space Home End Down 1 Enter Enter`. After Space, expect `𠀀é😀`; Home sets cursor 0 and End sets cursor 11 **UTF-8 bytes**. This text is 6 UTF-16 code units, not 6 Fcitx cursor units. Down shows the candidate; `1` selects it without commit. The first Enter commits the exact text once; the second produces no additional IME commit. Type `u Space Escape` to cancel without commit. Check native rendering of the non-BMP Han character, combining sequence, and emoji.
+4. Type `s u 3 c l 3`: show `你好`. Use Home, Right, Backspace, and Delete. Verify caret, native rendering, and the same core replay results. In the separate [Unicode staging build](#unicode-fixture-staging), type `u Space` four times, then `Home End Home Down 1 End Enter Enter`. After four completed readings, expect `𠀀é😀`; Home sets cursor 0 and End sets cursor 11 **UTF-8 bytes**. This text is 6 UTF-16 code units, not 6 Fcitx cursor units. Down shows the candidate; `1` selects it without commit. The first Enter commits the exact text once; the second produces no additional IME commit. Type `u Space Escape` to cancel without commit. Check native rendering of the non-BMP Han character, combining sequence, and emoji.
 5. Hold a key: verify repeat. Release it: no extra syllable or commit. Test Ctrl/Alt/Meta shortcuts, shifted letters and punctuation, Shift-alone, Shift plus another key, Shift plus Control transition, and Caps Lock. Check the physical US Dachen positions under a non-US host layout.
 6. Switch fields, windows, applications, and input methods during partial and complete composition. Expect cancellation with no commit and no state transfer. Repeat reset, including while one or both Shift keys remain physically held. Reopen candidates and test captured old callbacks separately from a delayed DBus `SelectCandidate(index)` from the old rendered UI. The DBus path remains an open protocol gap and blocks native acceptance.
 7. Check password, sensitive, and IME-disabled fields. Change an existing field to Sensitive-only while preedit and candidates are visible, without pressing another key. Presentation must clear immediately with no commit. Clear Sensitive and check that Enter and old candidate callbacks cannot restore the old composition. No input UI must appear in a restricted field. Do not override the host restriction.

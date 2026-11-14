@@ -1,4 +1,3 @@
-use ime_core::{Lexicon, parser::Syllable};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -139,7 +138,12 @@ fn pinned_source_rebuild_matches_artifact_report_and_character_scope() {
     assert_eq!(summary["phrase_entries"], 5);
     assert_eq!(summary["ignored_seed_characters"], 34);
     assert_eq!(summary["entries"], 16_501);
-    let lexicon = Lexicon::parse(std::str::from_utf8(&expected).unwrap()).unwrap();
+    let entries = std::str::from_utf8(&expected)
+        .unwrap()
+        .lines()
+        .skip(1)
+        .map(|line| line.split('\t').collect::<Vec<_>>())
+        .collect::<Vec<_>>();
     for (reading, text) in [
         ("ㄨㄛˇ", "我"),
         ("ㄍㄨㄛˊ", "國"),
@@ -153,24 +157,22 @@ fn pinned_source_rebuild_matches_artifact_report_and_character_scope() {
         ("ㄌㄜ˙", "了"),
     ] {
         assert!(
-            lexicon
-                .lookup(&[Syllable::parse(reading).unwrap()])
+            entries
                 .iter()
-                .any(|entry| entry.text == text)
+                .any(|entry| entry[0] == reading && entry[1] == text)
         );
     }
     for text in ["汉", "国", "学", "湾", "龙", "语", "发"] {
-        assert!(!lexicon.entries().iter().any(|entry| entry.text == text));
+        assert!(!entries.iter().any(|entry| entry[1] == text));
     }
     assert_eq!(
-        lexicon.lookup(&[Syllable::parse("ㄧˋ").unwrap()]).len(),
+        entries.iter().filter(|entry| entry[0] == "ㄧˋ").count(),
         154
     );
     assert_eq!(
-        lexicon
-            .entries()
+        entries
             .iter()
-            .map(|entry| entry.reading.len())
+            .map(|entry| entry[0].split_whitespace().count())
             .max(),
         Some(2)
     );
@@ -180,10 +182,19 @@ fn pinned_source_rebuild_matches_artifact_report_and_character_scope() {
 #[test]
 fn cns_replay_covers_new_rimes_and_selection_beyond_the_old_128_candidate_limit() {
     let root = root();
+    let fixture = Fixture::new();
+    success(
+        &Command::new(env!("CARGO_BIN_EXE_ime-cli"))
+            .arg("build-assets")
+            .arg(root.join("data/cns11643/lexicon.tsv"))
+            .arg(fixture.path("assets"))
+            .output()
+            .unwrap(),
+    );
     let run = || {
         Command::new(env!("CARGO_BIN_EXE_ime-cli"))
             .arg("replay")
-            .arg(root.join("data/cns11643/lexicon.tsv"))
+            .arg(fixture.path("assets"))
             .arg(root.join("fixtures/cns11643.jsonl"))
             .output()
             .unwrap()

@@ -64,6 +64,7 @@ struct Memory {
 #[derive(Serialize)]
 struct Method {
     timed_call: &'static str,
+    probe_call: &'static str,
     timed_events: &'static str,
     repetition_reset: &'static str,
     excluded: [&'static str; 5],
@@ -81,6 +82,7 @@ struct Report {
     build: Build,
     initialization: Initialization,
     per_key_latency: Latency,
+    probe_latency: Latency,
     memory: Memory,
     method: Method,
 }
@@ -94,7 +96,7 @@ pub(crate) fn run(
     if cfg!(debug_assertions) {
         return Err(Error::new("benchmark_requires_release_build"));
     }
-    let lexicon = files::load_lexicon(lexicon_path)?;
+    let lexicon = crate::assets::load(lexicon_path)?;
     let case = replay::Case::load(case_path)?;
     let total_events = case
         .records
@@ -108,13 +110,17 @@ pub(crate) fn run(
     drop(initial_engine);
 
     let mut latencies = Vec::with_capacity(case.keys * iterations);
+    let mut probe_latencies = Vec::with_capacity(case.keys * iterations);
     for _ in 0..iterations {
         // A fresh context resets composition, mode, and generation. No reset
         // event is injected into the fixture or included in a latency sample.
         let mut engine = Engine::new(Arc::clone(&lexicon.data));
         for (index, record) in case.records.iter().enumerate() {
             let event = record.event.clone();
-            let result = if matches!(&event, Event::Key(_)) {
+            let result = if let Event::Key(ref key) = event {
+                let start = Instant::now();
+                black_box(engine.probe(black_box(key)));
+                probe_latencies.push(files::elapsed_ns(start));
                 let event = black_box(event);
                 let start = Instant::now();
                 let result = black_box(engine.handle(event));
@@ -128,6 +134,7 @@ pub(crate) fn run(
         }
     }
     latencies.sort_unstable();
+    probe_latencies.sort_unstable();
     let report = Report {
         scope: "fixture_only",
         limitations: [
@@ -165,9 +172,18 @@ pub(crate) fn run(
             p95: percentile(&latencies, 95),
             p99: percentile(&latencies, 99),
         },
+        probe_latency: Latency {
+            unit: "nanoseconds",
+            percentile_method: "nearest_rank",
+            samples: probe_latencies.len(),
+            p50: percentile(&probe_latencies, 50),
+            p95: percentile(&probe_latencies, 95),
+            p99: percentile(&probe_latencies, 99),
+        },
         memory: memory(),
         method: Method {
             timed_call: "Engine::handle including the complete returned snapshot",
+            probe_call: "Engine::probe measured separately immediately before each key; it can warm caches",
             timed_events: "key events only; other fixture events still run",
             repetition_reset: "fresh Engine::new before each repetition",
             excluded: [

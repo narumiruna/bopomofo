@@ -1,487 +1,44 @@
-use ime_core::{Engine, Event, InputMode, KeyEvent, Lexicon, MAX_SYLLABLES, Output, Status};
-use std::sync::Arc;
-
-fn engine() -> Engine {
-    Engine::new(Arc::new(
-        Lexicon::parse(include_str!("../../../fixtures/lexicon.tsv")).unwrap(),
-    ))
-}
-fn key(value: &str) -> Event {
-    Event::Key(KeyEvent {
-        key: value.into(),
-        ..Default::default()
-    })
-}
-fn send(engine: &mut Engine, value: &str) -> Output {
-    engine.handle(key(value))
-}
-fn type_keys(engine: &mut Engine, keys: &str) {
-    for character in keys.chars() {
-        let value = character.to_string();
-        let name = if character == ' ' { "space" } else { &value };
-        send(engine, name);
-        engine.handle(Event::Key(KeyEvent {
-            key: name.into(),
-            release: true,
-            ..Default::default()
-        }));
-    }
-}
-fn choose(engine: &mut Engine, text: &str) {
-    send(engine, "down");
-    let snapshot = engine.snapshot();
-    let index = snapshot
-        .candidates
-        .iter()
-        .position(|candidate| candidate.text == text)
-        .unwrap();
-    let out = engine.handle(Event::Select {
-        generation: snapshot.generation,
-        index,
-    });
-    assert_eq!(out.status, None);
-    assert_eq!(out.commit, None);
-}
+mod common;
+use common::*;
+use ime_core::{Engine, Event, InputMode, KeyEvent, Status};
 
 #[test]
-fn tones_and_enter_commit_exactly_once() {
-    for (tone, expected) in [
+fn phrase_and_transient_commit() {
+    let mut e = engine();
+    type_keys(&mut e, "su3cl3");
+    assert_eq!(e.snapshot().preedit, "你好");
+    assert_eq!(key(&mut e, "enter").commit.as_deref(), Some("你好"));
+    assert_eq!(e.snapshot().preedit, "");
+    assert_eq!(key(&mut e, "enter").commit, None);
+    assert_eq!(e.handle(Event::Reset).commit, None);
+}
+#[test]
+fn tones() {
+    for (tone, text) in [
         ("space", "八"),
         ("6", "拔"),
         ("3", "把"),
         ("4", "爸"),
         ("7", "罷"),
     ] {
-        let mut engine = engine();
-        type_keys(&mut engine, "18");
-        let out = send(&mut engine, tone);
-        assert_eq!(out.snapshot.preedit, expected);
-        assert_eq!(out.commit, None);
-        let out = send(&mut engine, "enter");
-        assert_eq!(out.commit.as_deref(), Some(expected));
-        assert!(out.snapshot.preedit.is_empty());
-        assert_eq!(send(&mut engine, "enter").commit, None);
-        assert!(!send(&mut engine, "enter").consumed);
-        assert!(engine.snapshot().preedit.is_empty());
-        assert_eq!(engine.handle(Event::Reset).commit, None);
+        let mut e = engine();
+        type_keys(&mut e, "18");
+        key(&mut e, tone);
+        assert_eq!(e.snapshot().preedit, text);
     }
 }
-
 #[test]
-fn every_allowed_single_reading_candidate_remains_selectable() {
-    let mut source = String::from("# bopomofo-lexicon-v1\n");
-    for index in 0..ime_core::lexicon::MAX_CANDIDATES_PER_READING {
-        source.push_str(&format!("ㄧˋ\t候選{index:03}\t1\n"));
-    }
-    let mut engine = Engine::new(Arc::new(Lexicon::parse(&source).unwrap()));
-    type_keys(&mut engine, "u4");
-    let open = send(&mut engine, "down");
-    assert_eq!(open.snapshot.candidates.len(), 256);
-    for _ in 0..28 {
-        send(&mut engine, "page_down");
-    }
-    assert_eq!(engine.snapshot().page, 28);
-    assert_eq!(send(&mut engine, "4").snapshot.preedit, "候選255");
-    assert_eq!(
-        send(&mut engine, "enter").commit.as_deref(),
-        Some("候選255")
-    );
-    assert_eq!(send(&mut engine, "enter").commit, None);
-}
-
-#[test]
-fn invalid_pending_unknown_reading_and_space_rules() {
-    let mut engine = engine();
-    assert!(!send(&mut engine, "space").consumed);
-    send(&mut engine, "1");
-    for value in ["3", "enter"] {
-        let out = send(&mut engine, value);
-        assert_eq!(out.status, Some(Status::InvalidSyllable));
-        assert_eq!(out.snapshot.preedit, "ㄅ");
-        assert_eq!(out.commit, None);
-    }
-    send(&mut engine, "8");
-    send(&mut engine, "backspace");
-    assert_eq!(engine.snapshot().preedit, "ㄅ");
-    send(&mut engine, "escape");
-    type_keys(&mut engine, "q8");
-    let out = send(&mut engine, "space");
-    assert_eq!(out.snapshot.preedit, "ㄆㄚ");
-    assert_eq!(out.status, Some(Status::UnknownReading));
-    assert_eq!(send(&mut engine, "space").commit.as_deref(), Some("ㄆㄚ"));
-}
-
-#[test]
-fn phrase_decode_edit_cursor_and_deletion() {
-    let mut engine = engine();
-    type_keys(&mut engine, "su3cl3");
-    assert_eq!(engine.snapshot().preedit, "你好");
-    assert_eq!(engine.snapshot().cursor, 6);
-    send(&mut engine, "home");
-    send(&mut engine, "delete");
-    assert_eq!(engine.snapshot().preedit, "好");
-    send(&mut engine, "end");
-    send(&mut engine, "backspace");
-    assert_eq!(engine.snapshot().preedit, "");
-    type_keys(&mut engine, "su3cl3");
-    send(&mut engine, "home");
-    send(&mut engine, "right");
-    type_keys(&mut engine, "18 ");
-    assert_eq!(engine.snapshot().preedit, "你八好");
-    send(&mut engine, "backspace");
-    assert_eq!(engine.snapshot().preedit, "你好");
-    send(&mut engine, "end");
-    send(&mut engine, "1");
-    let before = engine.snapshot().preedit;
-    for movement in ["left", "right", "home", "end"] {
-        assert_eq!(send(&mut engine, movement).snapshot.preedit, before);
-    }
-}
-
-#[test]
-fn explicit_selection_resolves_digit_tone_conflict_and_pages() {
-    let mut engine = engine();
-    type_keys(&mut engine, "18 ");
-    send(&mut engine, "down");
-    assert!(engine.snapshot().selecting);
-    let out = send(&mut engine, "2");
-    assert_eq!(out.snapshot.preedit, "巴");
-    assert!(!out.snapshot.selecting);
-    assert_eq!(out.commit, None);
-    send(&mut engine, "down");
-    send(&mut engine, "page_down");
-    assert_eq!(engine.snapshot().page, 1);
-    send(&mut engine, "1");
-    assert_eq!(engine.snapshot().preedit, "豝");
-    send(&mut engine, "down");
-    send(&mut engine, "escape");
-    assert_eq!(engine.snapshot().preedit, "豝");
-    send(&mut engine, "escape");
-    assert!(engine.snapshot().preedit.is_empty());
-    type_keys(&mut engine, "18 ");
-    send(&mut engine, "down");
-    send(&mut engine, "down");
-    assert_eq!(send(&mut engine, "enter").snapshot.preedit, "巴");
-    assert_eq!(send(&mut engine, "enter").commit.as_deref(), Some("巴"));
-}
-
-#[test]
-fn locks_survive_unrelated_edits_and_unlock_on_overlap() {
-    let mut engine = engine();
-    type_keys(&mut engine, "su3cl3");
-    send(&mut engine, "home");
-    choose(&mut engine, "妳");
-    send(&mut engine, "end");
-    type_keys(&mut engine, "18 ");
-    choose(&mut engine, "巴");
-    assert_eq!(engine.snapshot().preedit, "妳好巴");
-    send(&mut engine, "home");
-    send(&mut engine, "delete");
-    assert_eq!(engine.snapshot().preedit, "好巴");
-    send(&mut engine, "home");
-    type_keys(&mut engine, "su3");
-    assert_eq!(engine.snapshot().preedit, "你好巴");
-    engine.handle(Event::Reset);
-    type_keys(&mut engine, "su3cl3");
-    send(&mut engine, "home");
-    choose(&mut engine, "你好");
-    send(&mut engine, "home");
-    send(&mut engine, "right");
-    type_keys(&mut engine, "18 ");
-    assert_eq!(engine.snapshot().preedit, "你八好");
-}
-
-#[test]
-fn explicit_reselection_can_change_locked_span_length() {
-    let mut engine = engine();
-    type_keys(&mut engine, "su3cl318 ");
-    choose(&mut engine, "巴");
-    send(&mut engine, "home");
-    choose(&mut engine, "妳");
-    assert_eq!(engine.snapshot().preedit, "妳好巴");
-    send(&mut engine, "home");
-    choose(&mut engine, "你好");
-    assert_eq!(engine.snapshot().preedit, "你好巴");
-    send(&mut engine, "home");
-    send(&mut engine, "right");
-    choose(&mut engine, "好");
-    assert_eq!(engine.snapshot().preedit, "你好巴");
-    send(&mut engine, "home");
-    choose(&mut engine, "妳");
-    assert_eq!(engine.snapshot().preedit, "妳好巴");
-}
-
-#[test]
-fn stale_selection_reset_and_context_isolation() {
-    let mut a = engine();
-    let mut b = a.clone();
-    type_keys(&mut a, "18 ");
-    assert_eq!(b.snapshot().preedit, "");
-    send(&mut a, "down");
-    let stale = a.snapshot().generation;
-    send(&mut a, "escape");
-    send(&mut a, "down");
-    let before = a.snapshot();
-    let out = a.handle(Event::Select {
-        generation: stale,
-        index: 0,
-    });
-    assert_eq!(out.status, Some(Status::StaleSelection));
-    assert_eq!(a.snapshot(), before);
-    for event in [
-        Event::FocusLost,
-        Event::Reset,
-        Event::Reset,
-        Event::Deactivate,
-    ] {
-        let out = a.handle(event);
-        assert_eq!(out.commit, None);
-        assert_eq!(out.snapshot.preedit, "");
-    }
-    assert!(!send(&mut a, "1").consumed);
-    a.handle(Event::Activate);
-    assert!(send(&mut a, "1").consumed);
-    type_keys(&mut b, "su3");
-    assert_eq!(b.snapshot().preedit, "你");
-}
-
-#[test]
-fn shortcuts_modes_release_and_repeat() {
-    let mut engine = engine();
-    type_keys(&mut engine, "18 ");
-    let before = engine.snapshot();
-    for (ctrl, alt, meta) in [
-        (true, false, false),
-        (false, true, false),
-        (false, false, true),
-    ] {
-        let out = engine.handle(Event::Key(KeyEvent {
-            key: "a".into(),
-            ctrl,
-            alt,
-            meta,
-            ..Default::default()
-        }));
-        assert!(!out.consumed);
-        assert_eq!(out.snapshot, before);
-        let released = engine.handle(Event::Key(KeyEvent {
-            key: "a".into(),
-            ctrl,
-            alt,
-            meta,
-            release: true,
-            ..Default::default()
-        }));
-        assert!(!released.consumed);
-        assert_eq!(released.snapshot, before);
-    }
-    assert!(
-        !engine
-            .handle(Event::Key(KeyEvent {
-                key: "1".into(),
-                release: true,
-                ..Default::default()
-            }))
-            .consumed
-    );
-    send(&mut engine, "shift");
-    let out = engine.handle(Event::Key(KeyEvent {
-        key: "shift".into(),
-        release: true,
-        ..Default::default()
-    }));
-    assert_eq!(out.snapshot.mode, InputMode::Latin);
-    assert_eq!(out.snapshot.preedit, "");
-    assert_eq!(out.commit, None);
-    assert!(!send(&mut engine, "1").consumed);
-    send(&mut engine, "caps_lock");
-    assert_eq!(engine.snapshot().mode, InputMode::Chinese);
-    engine.handle(Event::Key(KeyEvent {
-        key: "caps_lock".into(),
-        repeat: true,
-        ..Default::default()
-    }));
-    assert_eq!(engine.snapshot().mode, InputMode::Chinese);
-    send(&mut engine, "shift");
-    send(&mut engine, "1");
-    engine.handle(Event::Key(KeyEvent {
-        key: "shift".into(),
-        release: true,
-        ..Default::default()
-    }));
-    assert_eq!(engine.snapshot().mode, InputMode::Chinese);
-    assert_eq!(engine.snapshot().preedit, "ㄅ");
-    let out = engine.handle(Event::Key(KeyEvent {
-        key: "1".into(),
-        repeat: true,
-        ..Default::default()
-    }));
-    assert_eq!(out.snapshot.preedit, "ㄅ");
-}
-
-#[test]
-fn shift_gestures_preserve_chords_and_held_keys() {
-    let mut engine = engine();
-    type_keys(&mut engine, "18 ");
-    let shift = |release, aggregate| {
-        Event::Key(KeyEvent {
-            key: "shift".into(),
-            shift: aggregate,
-            release,
-            ..Default::default()
-        })
-    };
-    engine.handle(shift(false, true));
-    engine.handle(Event::Key(KeyEvent {
-        key: "a".into(),
-        shift: true,
-        ..Default::default()
-    }));
-    engine.handle(shift(false, true));
-    engine.handle(shift(true, true));
-    engine.handle(Event::Key(KeyEvent {
-        key: "a".into(),
-        shift: true,
-        release: true,
-        ..Default::default()
-    }));
-    engine.handle(shift(true, false));
-    assert_eq!(engine.snapshot().mode, InputMode::Chinese);
-    assert_eq!(engine.snapshot().preedit, "八ㄇ");
-    engine.handle(Event::Reset);
-    send(&mut engine, "1");
-    engine.handle(shift(false, true));
-    engine.handle(shift(true, false));
-    assert_eq!(engine.snapshot().mode, InputMode::Chinese);
-    assert_eq!(engine.snapshot().preedit, "ㄅ");
-    engine.handle(Event::Key(KeyEvent {
-        key: "1".into(),
-        release: true,
-        ..Default::default()
-    }));
-    engine.handle(shift(false, true));
-    engine.handle(shift(true, false));
-    assert_eq!(engine.snapshot().mode, InputMode::Latin);
-}
-
-#[test]
-fn aliased_native_keys_remain_held_until_both_releases() {
-    let mut engine = engine();
-    send(&mut engine, "enter");
-    send(&mut engine, "enter");
-    engine.handle(Event::Key(KeyEvent {
-        key: "enter".into(),
-        release: true,
-        ..Default::default()
-    }));
-    send(&mut engine, "shift");
-    let out = engine.handle(Event::Key(KeyEvent {
-        key: "shift".into(),
-        release: true,
-        ..Default::default()
-    }));
-    assert!(!out.consumed);
-    assert_eq!(out.snapshot.mode, InputMode::Chinese);
-    engine.handle(Event::Key(KeyEvent {
-        key: "enter".into(),
-        release: true,
-        ..Default::default()
-    }));
-    send(&mut engine, "shift");
-    let out = engine.handle(Event::Key(KeyEvent {
-        key: "shift".into(),
-        release: true,
-        ..Default::default()
-    }));
-    assert!(out.consumed);
-    assert_eq!(out.snapshot.mode, InputMode::Latin);
-}
-
-#[test]
-fn repeat_observation_without_initial_down_still_tracks_a_held_key() {
-    let mut engine = engine();
-    engine.handle(Event::Key(KeyEvent {
-        key: "1".into(),
-        repeat: true,
-        ..Default::default()
-    }));
-    send(&mut engine, "shift");
-    let out = engine.handle(Event::Key(KeyEvent {
-        key: "shift".into(),
-        release: true,
-        ..Default::default()
-    }));
-    assert!(!out.consumed);
-    assert_eq!(out.snapshot.mode, InputMode::Chinese);
-    engine.handle(Event::Key(KeyEvent {
-        key: "1".into(),
-        release: true,
-        ..Default::default()
-    }));
-    send(&mut engine, "shift");
-    let out = engine.handle(Event::Key(KeyEvent {
-        key: "shift".into(),
-        release: true,
-        ..Default::default()
-    }));
-    assert!(out.consumed);
-    assert_eq!(out.snapshot.mode, InputMode::Latin);
-}
-
-#[test]
-fn composition_limit_never_loses_or_auto_commits() {
-    let mut engine = engine();
-    for _ in 0..MAX_SYLLABLES {
-        type_keys(&mut engine, "18 ");
-    }
-    let before = engine.snapshot().preedit;
-    assert_eq!(before, "八".repeat(64));
-    let out = send(&mut engine, "1");
-    assert_eq!(out.status, Some(Status::LimitReached));
-    assert_eq!(out.commit, None);
-    assert_eq!(out.snapshot.preedit, before);
-    send(&mut engine, "backspace");
-    type_keys(&mut engine, "184");
-    assert_eq!(engine.snapshot().preedit, format!("{}爸", "八".repeat(63)));
-}
-
-#[test]
-fn unicode_and_multi_scalar_span_offsets_are_valid() {
-    let lexicon = Lexicon::parse(
-        "# bopomofo-lexicon-v1\nㄅㄚ\t𠀀👩‍💻e\u{301}\t100\nㄅㄚ ㄅㄚ\t𠀁x\u{301}\t10000\n",
-    )
-    .unwrap();
-    let mut engine = Engine::new(Arc::new(lexicon));
-    type_keys(&mut engine, "18 ");
-    let snapshot = engine.snapshot();
-    assert_eq!(snapshot.cursor, snapshot.preedit.len());
-    assert!(snapshot.preedit.is_char_boundary(snapshot.cursor));
-    type_keys(&mut engine, "18 ");
-    send(&mut engine, "home");
-    choose(&mut engine, "𠀁x\u{301}");
-    send(&mut engine, "home");
-    send(&mut engine, "right");
-    assert_eq!(engine.snapshot().cursor, 0);
-    send(&mut engine, "end");
-    assert_eq!(engine.snapshot().cursor, "𠀁x\u{301}".len());
-}
-
-#[test]
-fn bounded_state_machine_fuzz_and_probe_properties() {
-    let mut a = engine();
-    let mut b = a.clone();
-    let mut random = 0x5eed_u64;
+fn readonly_probe_matches_actual_on_all_routes() {
+    let mut e = engine();
+    let mut seed = 17u64;
     let keys = [
-        "1",
-        "8",
-        "3",
-        "6",
-        "4",
-        "7",
         "s",
         "u",
+        "3",
         "c",
         "l",
+        "1",
+        "8",
         "space",
         "enter",
         "escape",
@@ -489,44 +46,265 @@ fn bounded_state_machine_fuzz_and_probe_properties() {
         "delete",
         "left",
         "right",
-        "home",
-        "end",
-        "down",
         "up",
-        "page_up",
+        "down",
         "page_down",
-        "shift",
+        "page_up",
+        "tab",
         "caps_lock",
-        "[",
-        "",
+        "shift",
+        "control",
+        "not-a-key",
     ];
-    for index in 0..20_000 {
-        random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
-        let key = KeyEvent {
-            key: keys[(random >> 32) as usize % keys.len()].into(),
-            ctrl: index % 79 == 0,
-            release: index % 7 == 0,
-            repeat: index % 11 == 0,
-            ..Default::default()
+    for i in 0..20_000 {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+        let k = KeyEvent {
+            key: keys[(seed as usize) % keys.len()].into(),
+            ctrl: i % 17 == 0,
+            alt: i % 31 == 0,
+            meta: i % 41 == 0,
+            shift: i % 13 == 0,
+            repeat: i % 7 == 0,
+            release: i % 3 == 0,
         };
-        let before = a.snapshot();
-        let probe = a.probe(&key);
-        assert_eq!(a.snapshot(), before);
-        let event = Event::Key(key);
-        let out = a.handle(event.clone());
-        assert_eq!(probe, out.consumed);
-        assert_eq!(out, b.handle(event));
-        assert!(out.snapshot.preedit.is_char_boundary(out.snapshot.cursor));
-        assert!(out.snapshot.candidates.len() <= ime_core::lexicon::MAX_CANDIDATES_PER_READING);
-        assert!(
-            out.snapshot
-                .candidates
-                .iter()
-                .all(|candidate| candidate.start < candidate.end && candidate.end <= 64)
-        );
-        assert_ne!(out.status, Some(Status::InternalError));
-        if index % 103 == 0 {
-            assert_eq!(a.handle(Event::Reset), b.handle(Event::Reset));
+        let before = e.snapshot();
+        let predicted = e.probe(&k);
+        for _ in 0..3 {
+            assert_eq!(e.probe(&k), predicted);
+            assert_eq!(e.snapshot(), before);
+        }
+        let result = e.handle(Event::Key(k));
+        assert_eq!(result.consumed, predicted);
+        let s = result.snapshot;
+        assert!(s.preedit.is_char_boundary(s.cursor));
+        assert!(s.candidates.len() <= 256);
+        assert!(!s.selecting || !s.candidates.is_empty());
+        assert!(s.candidates.iter().all(|c| c.start < c.end && c.end <= 64));
+        if i % 251 == 0 {
+            e.handle(Event::Reset);
         }
     }
+}
+#[test]
+fn candidates_pages_and_stale_events() {
+    let mut e = engine();
+    type_keys(&mut e, "18 ");
+    assert!(e.snapshot().candidates.is_empty());
+    key(&mut e, "down");
+    assert_eq!(e.snapshot().candidates[0].text, "八");
+    key(&mut e, "page_down");
+    assert_eq!(e.snapshot().page, 1);
+    key(&mut e, "1");
+    assert_eq!(e.snapshot().preedit, "豝");
+    let before = e.snapshot();
+    let stale = e.handle(Event::Select {
+        generation: before.generation.wrapping_sub(1),
+        index: 0,
+    });
+    assert_eq!(stale.status, Some(Status::StaleSelection));
+    assert_eq!(stale.snapshot, before);
+    assert_eq!(stale.commit, None);
+}
+#[test]
+fn absolute_ui_selection_and_cancel() {
+    let mut e = engine();
+    type_keys(&mut e, "18 ");
+    key(&mut e, "down");
+    let g = e.snapshot().generation;
+    e.handle(Event::Select {
+        generation: g,
+        index: 10,
+    });
+    assert_eq!(e.snapshot().preedit, "仈");
+    key(&mut e, "down");
+    key(&mut e, "escape");
+    assert_eq!(e.snapshot().preedit, "仈");
+    assert!(!e.snapshot().selecting);
+    key(&mut e, "escape");
+    assert_eq!(e.snapshot().preedit, "");
+}
+#[test]
+fn pending_unknown_invalid_and_navigation_never_lose_text() {
+    let mut e = engine();
+    type_keys(&mut e, "q8");
+    assert_eq!(key(&mut e, "space").status, Some(Status::UnknownReading));
+    assert_eq!(e.snapshot().preedit, "ㄆㄚ");
+    for k in ["down", "left", "right", "home", "delete"] {
+        assert_eq!(key(&mut e, k).snapshot.preedit, "ㄆㄚ");
+    }
+    assert_eq!(key(&mut e, "enter").status, Some(Status::InvalidSyllable));
+    assert_eq!(e.snapshot().preedit, "ㄆㄚ");
+    key(&mut e, "backspace");
+    assert_eq!(e.snapshot().preedit, "ㄆ");
+    key(&mut e, "escape");
+    assert_eq!(e.snapshot().preedit, "");
+}
+#[test]
+fn context_isolation_and_lifecycle() {
+    let mut a = engine();
+    let b = engine();
+    type_keys(&mut a, "su3");
+    assert!(b.snapshot().preedit.is_empty());
+    for event in [Event::FocusLost, Event::Reset, Event::Deactivate] {
+        let out = a.handle(event);
+        assert_eq!(out.commit, None);
+        assert!(out.snapshot.preedit.is_empty());
+    }
+    assert!(!key(&mut a, "s").consumed);
+    a.handle(Event::Activate);
+    assert!(key(&mut a, "s").consumed);
+}
+#[test]
+fn shortcuts_modes_and_shift_chords() {
+    let mut e = engine();
+    type_keys(&mut e, "su3");
+    let before = e.snapshot();
+    for k in [
+        KeyEvent {
+            key: "2".into(),
+            ctrl: true,
+            ..Default::default()
+        },
+        KeyEvent {
+            key: "a".into(),
+            alt: true,
+            ..Default::default()
+        },
+        KeyEvent {
+            key: "s".into(),
+            meta: true,
+            ..Default::default()
+        },
+        KeyEvent {
+            key: "caps_lock".into(),
+            ctrl: true,
+            ..Default::default()
+        },
+        KeyEvent {
+            key: "caps_lock".into(),
+            alt: true,
+            ..Default::default()
+        },
+        KeyEvent {
+            key: "caps_lock".into(),
+            meta: true,
+            ..Default::default()
+        },
+    ] {
+        assert!(!e.handle(Event::Key(k)).consumed);
+        assert_eq!(e.snapshot(), before);
+    }
+    key(&mut e, "caps_lock");
+    assert_eq!(e.snapshot().mode, InputMode::Latin);
+    assert!(e.snapshot().preedit.is_empty());
+    assert!(!key(&mut e, "s").consumed);
+    e.handle(Event::Reset);
+    e.handle(Event::Key(KeyEvent {
+        key: "shift".into(),
+        shift: true,
+        ..Default::default()
+    }));
+    e.handle(Event::Key(KeyEvent {
+        key: "shift".into(),
+        release: true,
+        ..Default::default()
+    }));
+    assert_eq!(e.snapshot().mode, InputMode::Chinese);
+}
+#[test]
+fn limits_do_not_autocommit() {
+    let mut e = engine();
+    for _ in 0..64 {
+        type_keys(&mut e, "su3");
+    }
+    let before = e.snapshot();
+    let o = key(&mut e, "s");
+    assert_eq!(o.status, Some(Status::LimitReached));
+    assert_eq!(o.commit, None);
+    assert_eq!(o.snapshot.preedit, before.preedit);
+    assert_eq!(key(&mut e, "enter").commit.unwrap().chars().count(), 64);
+}
+#[test]
+fn non_bmp_cursor_and_multi_syllable_span() {
+    let mut e = Engine::new(assets(
+        "ㄧ\t𠀀\t1\nㄋㄧˇ\t你\t2\nㄏㄠˇ\t好\t2\nㄋㄧˇ ㄏㄠˇ\t你好\t100\n",
+    ));
+    type_keys(&mut e, "u ");
+    assert_eq!(e.snapshot().cursor, 4);
+    assert_eq!(key(&mut e, "enter").commit.as_deref(), Some("𠀀"));
+    type_keys(&mut e, "su3cl3");
+    key(&mut e, "home");
+    key(&mut e, "down");
+    let s = e.snapshot();
+    assert_eq!((s.candidates[0].start, s.candidates[0].end), (0, 2));
+    key(&mut e, "tab");
+    assert!(e.snapshot().candidates.iter().all(|c| c.end == 1));
+    let mut unicode = Engine::new(assets("ㄧ\t𠀀\t1\nㄧ ㄧ ㄧ ㄧ\t𠀀é😀\t1000000\n"));
+    type_keys(&mut unicode, "u u u u ");
+    assert_eq!(unicode.snapshot().preedit, "𠀀é😀");
+    assert_eq!(unicode.snapshot().cursor, 11);
+    key(&mut unicode, "home");
+    key(&mut unicode, "right");
+    key(&mut unicode, "right");
+    assert_eq!(unicode.snapshot().cursor, 5); // Before the combining scalar, not a grapheme count.
+    key(&mut unicode, "home");
+    key(&mut unicode, "down");
+    assert_eq!(
+        (
+            unicode.snapshot().candidates[0].start,
+            unicode.snapshot().candidates[0].end
+        ),
+        (0, 4)
+    );
+    key(&mut unicode, "1");
+    assert_eq!(unicode.snapshot().cursor, 0);
+    key(&mut unicode, "end");
+    assert_eq!(unicode.snapshot().cursor, 11);
+    assert_eq!(key(&mut unicode, "enter").commit.as_deref(), Some("𠀀é😀"));
+}
+#[test]
+fn learning_and_logging_are_disabled() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    struct Capture(AtomicUsize);
+    impl log::Log for Capture {
+        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+            true
+        }
+        fn log(&self, _: &log::Record<'_>) {
+            self.0.fetch_add(1, Ordering::Relaxed);
+        }
+        fn flush(&self) {}
+    }
+    static LOGGER: Capture = Capture(AtomicUsize::new(0));
+    log::set_logger(&LOGGER).unwrap();
+    log::set_max_level(log::LevelFilter::Trace);
+    assert_eq!(log::STATIC_MAX_LEVEL, log::LevelFilter::Off);
+    eprintln!("BOPOMOFO_IO_BEGIN");
+    let mut a = engine();
+    let mut b = engine();
+    type_keys(&mut a, "18 ");
+    key(&mut a, "down");
+    key(&mut a, "2");
+    key(&mut a, "enter");
+    for _ in 0..3 {
+        type_keys(&mut a, "18 ");
+        type_keys(&mut b, "18 ");
+        assert_eq!(a.snapshot().preedit, b.snapshot().preedit);
+        key(&mut a, "escape");
+        key(&mut b, "escape");
+    }
+    // Include probe, selection, cancellation, learning shortcuts, and teardown.
+    let shortcut = KeyEvent {
+        key: "2".into(),
+        ctrl: true,
+        ..Default::default()
+    };
+    assert!(!a.probe(&shortcut));
+    assert!(!a.handle(Event::Key(shortcut)).consumed);
+    a.handle(Event::Reset);
+    b.handle(Event::Deactivate);
+    drop(a);
+    drop(b);
+    assert_eq!(LOGGER.0.load(Ordering::Relaxed), 0);
+    eprintln!("BOPOMOFO_IO_END");
 }

@@ -1,72 +1,71 @@
 # bopomofo
 
-跨平台 Traditional Chinese Zhuyin IME。共用輸入介面與引擎整合放在 Rust `ime-core`，各平台透過 native adapter 接入。
+跨平台 Traditional Chinese Zhuyin IME。Rust `ime-core` 封裝固定版本的 **libchewing 0.13.1**。macOS InputMethodKit、Windows TSF 與 Linux Fcitx5 adapters 共用輸入契約。
 
-專案已允許採用 libchewing 取代自製輸入引擎。目前仍使用自製引擎，尚未加入 libchewing dependency；目標架構與整合限制見 [Architecture](docs/architecture.md#engine-adoption-policy)。
-
-目前是開發版本，**不可宣稱已通過日常使用或 native IME 驗收**。正式詞庫、代表性效能與各平台 desktop checks 仍須依驗證紀錄確認。
+目前是開發版本。**尚未通過 installed native IME 驗收**。正式詞庫品質、代表性效能與應用程式相容性仍須獨立驗證。
 
 ## Components
 
-- `ime-core`：共用輸入介面；目前自行實作標準 Dachen、組字狀態、詞庫索引、dynamic-programming decoder 與候選排序。
-- `ime-ffi`：macOS／Linux 共用的 C ABI。
-- `ime-cli`：非互動 replay、詞庫驗證、正規化建置與 benchmark。
-- Native adapters：macOS InputMethodKit、Windows TSF、Linux Fcitx5。
+- `ime-core`：libchewing Editor、context-local state、mode／modifier、安全限制、read-only probe 與 UI selection 契約。
+- `ime-ffi`：macOS／Linux 使用的 C ABI v2；從已驗證的 memory assets 建立 engine。
+- `ime-cli`：離線 assets builder、資料驗證、非互動 replay 與 benchmark。
+- `ime-test-support`：僅供 tests 使用的 fixtures compiler。
+- Native adapters：只處理 OS 整合、資源載入、offset conversion 與 native presentation。
 
-每個 input context 使用獨立 Engine。輸入處理完全離線，不記錄或傳送按鍵、preedit 或 committed text。
+沒有自研 parser／decoder runtime 或可選 backend。每個 input context 有獨立 Editor。輸入處理離線，不記錄或傳送 keystrokes、preedit 或 committed text。User dictionary persistence、learning 與上游 logging 均停用。
 
-## Core development
+## Development checks
 
-需要 Rust 1.92.0，版本由 `rust-toolchain.toml` 固定。Windows 執行下列 workspace tests 前，先執行 `cargo build -p ime-windows --locked`，建立 DLL loader test 所需的 host DLL。
+需要 Rust 1.92.0，版本由 `rust-toolchain.toml` 固定。
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace --all-targets
-cargo run -p ime-cli -- replay fixtures/lexicon.tsv fixtures/basic.jsonl
-cargo run -p ime-cli -- replay data/cns11643/lexicon.tsv fixtures/cns11643.jsonl
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --all-targets --locked
+cargo test --workspace --all-targets --release --locked
+uv run --offline --no-project python -m unittest discover -s scripts/tests
 ```
 
-Replay 每行輸出一份 JSON Output。它只處理明確提供的測試事件，不連接系統鍵盤。
+Windows 先在各 profile 執行 `cargo build -p ime-windows --locked` 與 `cargo build -p ime-windows --release --locked`，供同 profile 的 DLL loader tests 使用。Cross-target `cargo check` 不等於 Windows native build。
 
-## Lexicon tools
+## Runtime assets and replay
+
+三平台預設使用所選的上游 `word.csv`／`tsi.csv`，不是 mini dictionary 或原 CNS supplement。資料版本、逐檔來源、LGPL grant 與 exclusions 見 [data sources](data/SOURCES.md#libchewing-default-data) 與 [notice](data/libchewing/NOTICE.md)。本輪有 160,440 個 merged entries；沒有保證 Taiwan corpus 品質，也沒有繁簡轉換功能。
 
 ```bash
-cargo run -p ime-cli -- validate-lexicon fixtures/lexicon.tsv
-cargo run -p ime-cli -- build-lexicon fixtures/lexicon.tsv target/lexicon.tsv
-cargo run --release -p ime-cli -- benchmark fixtures/lexicon.tsv fixtures/limit-64.jsonl 100
+cargo run -p ime-cli --locked -- build-assets data/libchewing/source target/default-assets
+cargo run -p ime-cli --locked -- build-assets fixtures/lexicon.tsv target/fixture-assets
+cargo run -p ime-cli --locked -- replay target/fixture-assets fixtures/basic.jsonl
+cargo run --release -p ime-cli --locked -- benchmark target/fixture-assets fixtures/limit-64.jsonl 100
 ```
 
-詞庫格式為 UTF-8 TSV。第一行是 `# bopomofo-lexicon-v1`。每筆資料包含 reading、text 與正整數 frequency，以 Tab 分隔。Reading 內的 canonical syllables 以單一空白分隔。第一聲省略符號，其餘使用 `ˊ`、`ˇ`、`ˋ`、`˙`。
+Assets 包含 `dictionary.dat`、`assets.json` 與分開的 project／engine／data licenses、authors／notices。Manifest 固定 engine、builder、source identity、filename、size 與 SHA-256。初始化拒絕缺檔、混版、hash mismatch 與不合法的 dictionary。Checksum 不提供來源認證。
 
-`build-lexicon` 驗證資料後，以固定順序匯出並回報 SHA-256。失敗時不覆寫既有產物。Native package 另附 checksum manifest，於初始化時檢查資料完整性。
+Replay 只讀明確提供的 synthetic events，不連接系統鍵盤。Baseline、CNS11643、quality 與 Unicode 各用自己的 assets。配對與手寫 expectations 見 [fixture notes](fixtures/README.md#replay-pairing)。
 
-`fixtures/lexicon.tsv` 保留為自製測試資料。macOS 預設開發 bundle 改用 CNS11643 Taiwan 常用／次常用字補充：13,052 字、16,496 字音 pairs，加上原有五筆自製詞組。資料來源、獨立授權與離線重建方式見 [CNS11643 guide](data/cns11643/README.md)。
+`validate-lexicon`、`build-lexicon` 與 `import-cns11643` 仍是離線 authoring tools；TSV 不再是 runtime 輸入格式。未識別的 caller-supplied data 不會自動取得 project AGPL license 或 redistribution grant。匯入與散布前必須確認其來源與授權。
 
-Baseline replays（含 `basic.jsonl`）仍搭配 39-entry `fixtures/lexicon.tsv`；`cns11643.jsonl` 只搭配 CNS 詞庫。Quality 與 Unicode cases 各用同目錄的獨立詞庫，不能加入 baseline replay glob；完整配對見 [fixture notes](fixtures/README.md#replay-pairing)。macOS baseline native smoke cases 須先明確建立 fixture bundle；CNS 與 Unicode cases 使用各自的 build 與 hashes，見 [macOS guide](docs/macos.md#authorized-native-smoke-test)。
+## Platform checks
 
-CNS character scores 與 fixture scores 都不是實測 phrase frequency。此資料可補充單字候選，但不能證明正式詞組品質、代表性效能或 native IME 驗收。
+Build、installation、activation 與 desktop validation 是不同步驟。Build 不會啟用 IME。
 
-## Platform builds and installation
+- [macOS](docs/macos.md)：Swift bundle、C ABI contracts、管理 dry-run 與 native handoff。
+- [Windows](docs/windows.md)：TSF、各 MSVC target、DLL loader 與 registration 限制。
+- [Linux](docs/linux.md)：Fcitx5、headless CTest、privacy trace、sanitizers 與未解的 DBus index-only selection gap。
 
-Build、安裝、啟用與 native 驗證是不同步驟。建立 bundle／DLL／addon 不會自動啟用輸入法。
-
-- [macOS](docs/macos.md)：Swift host、bundle、adapter tests、安裝與還原步驟。
-- [Windows](docs/windows.md)：TSF DLL、COM registration、架構與應用程式限制。
-- [Linux](docs/linux.md)：Fcitx5 addon、CMake、headless tests 與 desktop matrix。
-
-實際安裝、註冊、啟用、移除、系統設定變更與發布均須取得明確授權。管理腳本預設只執行 dry-run。
+實際安裝、註冊、啟用、移除、系統設定變更與發布均須另外取得明確授權。管理腳本預設 dry-run；不使用測試結果推定 OS／CPU／app 支援。
 
 ## Documents
 
 - [Architecture](docs/architecture.md)
-- [Input specification](docs/input-spec.md)
+- [Input specification and migration differences](docs/input-spec.md)
 - [Data sources and licenses](data/SOURCES.md)
 - [Platform prerequisites](docs/platform-support.md)
-- [Native validation](docs/native-validation.md)
-- [Release workflow](docs/releases.md)
+- [Validation register and external handoff](docs/native-validation.md)
+- [Fixture-only benchmark reports](docs/benchmarks/README.md)
+- [Source-only release workflow](docs/releases.md)
 - [Development rules](AGENTS.md)
 
 ## License
 
-專案保留現有 GNU AGPL v3 license。外部詞庫資料須分別保留適用的 license、copyright 與 notices，不因放入此 repository 而改成 AGPL。
+Project code 保留 AGPL-3.0-only。libchewing engine 與所選上游資料保留 LGPL-2.1-or-later；CNS 與自製 fixtures 使用各自的 license。不得因資料進入 repository 而更換其授權。任何未來 binary distribution 仍須完成 notices、corresponding source 與 static-link relinking obligations 的 release review。

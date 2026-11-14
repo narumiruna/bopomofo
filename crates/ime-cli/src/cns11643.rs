@@ -1,9 +1,8 @@
 //! Offline import of the pinned CNS11643 Taiwan common/less-common subset.
 //! Source preparation and data rights are recorded in data/cns11643/README.md.
 
+use crate::source::{HEADER, Reading as Syllable, Source};
 use crate::{Error, Result, files};
-use ime_core::parser::Syllable;
-use ime_core::{Lexicon, lexicon::HEADER};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
@@ -114,8 +113,8 @@ fn unicode_map(source: &str) -> Result<BTreeMap<Code, char>> {
 fn convert(
     phonetic: &str,
     unicode: &str,
-    seed: &Lexicon,
-) -> Result<(Lexicon, usize, usize, usize, usize)> {
+    seed: &Source,
+) -> Result<(Source, usize, usize, usize, usize)> {
     let mappings = unicode_map(unicode)?;
     let mut pairs = BTreeMap::new();
     let mut covered = BTreeSet::new();
@@ -144,6 +143,19 @@ fn convert(
         }
         let reading =
             Syllable::parse(value).map_err(|_| Error::at_line("invalid_cns_syllable", number))?;
+        let parsed: chewing::zhuyin::Syllable = reading
+            .as_str()
+            .parse()
+            .map_err(|_| Error::at_line("invalid_cns_syllable", number))?;
+        use chewing::zhuyin::Bopomofo::{C, CH, R, S, SH, Z, ZH};
+        // The pinned CNS source excludes incomplete initials, unlike upstream
+        // raw-symbol dictionaries. This is source validation, not an input engine.
+        if !parsed.has_medial()
+            && !parsed.has_rime()
+            && !matches!(parsed.initial(), Some(ZH | CH | SH | R | Z | C | S))
+        {
+            return Err(Error::at_line("invalid_cns_syllable", number));
+        }
         if pairs
             .insert((reading, text.to_string()), code.score())
             .is_some()
@@ -187,7 +199,7 @@ fn convert(
         writeln!(output, "\t{}\t{}", entry.text, entry.frequency).unwrap();
         phrases += 1;
     }
-    let lexicon = Lexicon::parse(&output).map_err(|_| Error::new("invalid_cns_lexicon"))?;
+    let lexicon = Source::parse(&output).map_err(|_| Error::new("invalid_cns_lexicon"))?;
     Ok((lexicon, character_readings, phrases, ignored, excluded))
 }
 
@@ -249,8 +261,8 @@ pub(crate) fn import(source: &Path, seed: &Path, destination: &Path) -> Result<I
 mod tests {
     use super::*;
 
-    fn empty_seed() -> Lexicon {
-        Lexicon::parse(&format!("{HEADER}\n")).unwrap()
+    fn empty_seed() -> Source {
+        Source::parse(&format!("{HEADER}\n")).unwrap()
     }
 
     #[test]
@@ -277,7 +289,12 @@ mod tests {
         assert_eq!(count, 4);
         assert_eq!(first.to_text(), second.to_text());
         assert_eq!(
-            first.lookup(&[Syllable::parse("ㄌㄜ˙").unwrap()])[0].text,
+            first
+                .entries()
+                .iter()
+                .find(|e| e.reading[0].as_str() == "ㄌㄜ˙")
+                .unwrap()
+                .text,
             "了"
         );
     }
@@ -322,9 +339,10 @@ mod tests {
             convert(&format!("{valid}2-3378\t˙ㄑ\n"), unicode, &empty_seed()).unwrap();
         assert_eq!((count, excluded), (1, 1));
         assert!(
-            lexicon
-                .lookup(&[Syllable::parse("ㄑㄧ˙").unwrap()])
-                .is_empty()
+            !lexicon
+                .entries()
+                .iter()
+                .any(|e| e.reading[0].as_str() == "ㄑㄧ˙")
         );
         assert!(convert("2-3378\t˙ㄑ\n", unicode, &empty_seed()).is_err());
         assert!(
@@ -343,12 +361,12 @@ mod tests {
         let unicode = "1-4421\t4E00\n1-4422\t4E59\n";
         let phonetic = "1-4421\tㄧ\n1-4422\tㄧˇ\n";
         let seed =
-            Lexicon::parse(&format!("{HEADER}\nㄧ\t汉\t100\nㄧ ㄧˇ\t一乙\t100000\n")).unwrap();
+            Source::parse(&format!("{HEADER}\nㄧ\t汉\t100\nㄧ ㄧˇ\t一乙\t100000\n")).unwrap();
         let (lexicon, _, phrases, ignored, _) = convert(phonetic, unicode, &seed).unwrap();
         assert_eq!((phrases, ignored), (1, 1));
         assert!(!lexicon.to_text().contains('汉'));
         for phrase in ["ㄧ ㄧ\t一乙\t1", "ㄧ ㄧˇ\t一汉\t1", "ㄧ ㄧˇ\t一\t1"] {
-            let seed = Lexicon::parse(&format!("{HEADER}\n{phrase}\n")).unwrap();
+            let seed = Source::parse(&format!("{HEADER}\n{phrase}\n")).unwrap();
             assert!(convert(phonetic, unicode, &seed).is_err());
         }
     }

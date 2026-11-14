@@ -29,7 +29,15 @@ impl Fixture {
             match fs::create_dir(&directory) {
                 Ok(()) => {
                     let fixture = Self { directory };
-                    fixture.write("lexicon.tsv", LEXICON);
+                    let source = fixture.write("lexicon.tsv", LEXICON);
+                    success(
+                        &cli()
+                            .arg("build-assets")
+                            .arg(source)
+                            .arg(fixture.path("lexicon.assets"))
+                            .output()
+                            .unwrap(),
+                    );
                     return fixture;
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -72,8 +80,21 @@ fn cli() -> Command {
     Command::new(env!("CARGO_BIN_EXE_ime-cli"))
 }
 
-fn replay(lexicon: &Path, case: &Path) -> Output {
-    cli().arg("replay").arg(lexicon).arg(case).output().unwrap()
+fn replay(source: &Path, case: &Path) -> Output {
+    // Authoring data is compiled only by this test helper; runtime CLI accepts assets only.
+    let assets = source.with_extension("assets");
+    if !assets.exists() {
+        let built = cli()
+            .arg("build-assets")
+            .arg(source)
+            .arg(&assets)
+            .output()
+            .unwrap();
+        if !built.status.success() {
+            return built;
+        }
+    }
+    cli().arg("replay").arg(assets).arg(case).output().unwrap()
 }
 
 fn build(input: &Path, output: &Path) -> Output {
@@ -396,16 +417,16 @@ fn benchmark_requires_release_and_reports_only_measured_fixture_data() {
             .map(|event| format!("{event}\n"))
             .collect::<String>(),
     );
-    // Use the current core's output as expectations. This tests context reset
-    // and CLI checking without hard-coding core language rules.
-    let baseline = replay(&fixture.path("lexicon.tsv"), &case);
-    success(&baseline);
-    let baseline = String::from_utf8(baseline.stdout).unwrap();
+    // Expectations follow the shared input contract, not a captured engine output.
+    let expected = [
+        json!({"consumed":true,"commit":null,"snapshot":{"preedit":"","cursor":0}}),
+        json!({"consumed":false,"commit":null,"snapshot":{"preedit":"","cursor":0}}),
+        json!({"consumed":true,"commit":null,"snapshot":{"preedit":"ㄅ","cursor":3}}),
+    ];
     let checked = events
         .iter()
-        .zip(baseline.lines())
-        .map(|(record, output)| {
-            let expected: Value = serde_json::from_str(output).unwrap();
+        .zip(expected)
+        .map(|(record, expected)| {
             let record = json!({"event": record["event"], "expect": expected});
             format!("{record}\n")
         })
@@ -413,7 +434,7 @@ fn benchmark_requires_release_and_reports_only_measured_fixture_data() {
     fixture.write("benchmark.jsonl", &checked);
     let output = cli()
         .arg("benchmark")
-        .arg(fixture.path("lexicon.tsv"))
+        .arg(fixture.path("lexicon.assets"))
         .arg(&case)
         .arg("3")
         .output()
@@ -431,7 +452,10 @@ fn benchmark_requires_release_and_reports_only_measured_fixture_data() {
     assert_eq!(report["corpus"]["events"], 3);
     assert_eq!(report["corpus"]["key_events"], 2);
     assert_eq!(report["corpus"]["total_events"], 9);
-    assert_eq!(report["lexicon"]["sha256"], digest(LEXICON.as_bytes()));
+    assert_eq!(
+        report["lexicon"]["sha256"],
+        digest(&fs::read(fixture.path("lexicon.assets/assets.json")).unwrap())
+    );
     assert_eq!(report["lexicon"]["entries"], 2);
     assert_eq!(report["per_key_latency"]["samples"], 6);
     let latency = &report["per_key_latency"];
@@ -465,7 +489,7 @@ fn release_benchmark_bounds_total_work_and_allows_zero_key_samples() {
     let case = fixture.write("benchmark.jsonl", RESET.repeat(101));
     let output = cli()
         .arg("benchmark")
-        .arg(fixture.path("lexicon.tsv"))
+        .arg(fixture.path("lexicon.assets"))
         .arg(&case)
         .arg("10000")
         .output()
@@ -476,7 +500,7 @@ fn release_benchmark_bounds_total_work_and_allows_zero_key_samples() {
     fixture.write("benchmark.jsonl", RESET);
     let output = cli()
         .arg("benchmark")
-        .arg(fixture.path("lexicon.tsv"))
+        .arg(fixture.path("lexicon.assets"))
         .arg(&case)
         .arg("2")
         .output()

@@ -2,20 +2,13 @@
 
 ## Status
 
-The Windows x64, x86, and ARM64 DLLs passed native build, COM unit tests, and non-registration loader tests. Installed TSF and desktop input remain **unverified**.
-A successful cross-target `cargo check` does not validate a DLL link, TSF registration, or desktop input.
+The current migration uses libchewing 0.13.1 and verified v2 memory assets. Linux-host cross-target checks do not prove Windows linking, COM loading or desktop input. Record current hosted results separately in the [validation register](native-validation.md).
 
-| Target | Compile/type check on macOS | Windows DLL build and tests | Registered TSF and apps |
-| --- | --- | --- | --- |
-| x64 (`x86_64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 27 unit tests and 1 loader test in each debug/release profile | Unverified |
-| x86 (`i686-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 27 unit tests and 1 loader test per profile under WOW64 | Unverified |
-| ARM64 (`aarch64-pc-windows-msvc`) | Passed with Rust 1.92.0 | Passed: build, 27 unit tests and 1 loader test per profile on Windows 11 ARM64 | Unverified |
-
-The development host is macOS ARM64. GitHub Actions provided Windows Server 2022 x64/WOW64 and Windows 11 ARM64 runners. [Run 40684779204](https://github.com/narumiruna/bopomofo/actions/runs/40684779204) passed all three targets and both profiles at commit `6fe241f86dd72ccaa9c9e02828dc687fb986df35`. DLL hashes are recorded in [native-validation.md](native-validation.md). This does not validate a live document edit session or candidate window. No DLL was installed, registered, enabled, removed, or published. A Windows release is blocked until the applicable native checks pass. An x64 result must not be used as an x86 or ARM64 result.
+Historical pre-migration run [40684779204](https://github.com/narumiruna/bopomofo/actions/runs/40684779204) passed x64, x86 and ARM64 debug/release builds and non-registration tests at `6fe241f86dd72ccaa9c9e02828dc687fb986df35`. Those results do not validate the new engine or assets. Installed TSF, native text stores, application compatibility and candidate windows remain **unverified**. No DLL is installed, registered, enabled or published by CI.
 
 ## Implementation
 
-`platforms/windows/Cargo.toml` defines package `ime-windows` and library `bopomofo_tsf`, with `cdylib` and `rlib` outputs. Windows APIs use target-gated `windows` and `windows-core` dependencies. macOS workspace tests do not require Windows headers, libraries, or an SDK. `ime-core` is the only input engine dependency.
+`platforms/windows/Cargo.toml` defines package `ime-windows` and library `bopomofo_tsf`, with `cdylib` and `rlib` outputs. Windows APIs use target-gated `windows` and `windows-core` dependencies. Non-Windows workspace tests do not require Windows headers, libraries, or an SDK. `ime-core` is the only input engine dependency.
 
 | Path under `platforms/windows/` | Responsibility |
 | --- | --- |
@@ -27,7 +20,7 @@ The development host is macOS ARM64. GitHub Actions provided Windows Server 2022
 | `src/keys.rs` | Physical US scan-code mapping, post-event modifiers, aggregate Shift edges, repeat and release. |
 | `src/session.rs` | Context epochs, output ordering, read-only probe, panic boundary. |
 | `src/text.rs` | Checked UTF-8 byte to UTF-16 unit conversion. |
-| `src/resource.rs` | Bounded, activation-time lexicon and checksum loading. |
+| `src/resource.rs` | Bounded, activation-time dictionary and manifest loading. |
 
 ### COM identity
 
@@ -45,9 +38,9 @@ The development host is macOS ARM64. GitHub Actions provided Windows Server 2022
 
 ### Activation and context lifetime
 
-Activation loads `lexicon.tsv` and `lexicon.sha256` from the DLL directory. It checks the SHA-256 digest, validates the versioned lexicon, and builds one immutable `Arc<Lexicon>`. Each native context has a separate `Engine`. Key callbacks do not read files or rebuild the lexicon index.
+Activation loads `dictionary.dat` and `assets.json` from the DLL directory. Core verifies the pinned engine/builder, source identity, filename, length, SHA-256 and bounded upstream file structure. One immutable `Arc<Assets>` is shared; each context has a separate libchewing-backed `Engine`. Key callbacks do not read files or rebuild a dictionary.
 
-The SHA-256 file contains 64 lowercase hexadecimal digits and a final newline. The loader bounds both files and rejects missing, changed, empty, invalid, or incompatible data. A digest identifies an artifact; it does not authenticate its source. No production data is embedded in the DLL. The build script copies only the repository's self-authored fixture.
+The loader rejects missing, changed, empty, oversized, mixed-version and invalid data. A digest identifies bytes; it does not authenticate their source. The default package uses the selected upstream word/phrase data, with separate project, engine and data notices. A fixture, CNS or Unicode package must be staged explicitly. Learning, persistence, fallback path discovery and upstream logging are disabled.
 
 Focus loss, context removal, and deactivation invalidate the context epoch before cancellation. A context pop restores the focused document's new top context without a document focus change. Candidate callbacks carry the original epoch and core generation. A stale callback cannot select a new composition. Edit sessions retain their context until cancellation can finish, but they cannot commit an invalidated output.
 
@@ -89,7 +82,7 @@ The candidate object implements `ITfUIElement`, `ITfCandidateListUIElement`, and
 
 `ITfUIElementMgr::BeginUIElement` does **not** create a default system candidate window. If the host requests service-owned UI, the DLL uses a native Windows `LISTBOX` in a non-activating popup. It does not use a cross-platform window toolkit. Mouse selection also goes through the core. Focus loss and deactivation close both presentations. Position comes from the TSF caret rectangle within an edit session and is bounded by the monitor work area. A transient `TS_E_NOLAYOUT` uses the native view origin until a later update. DPI sizing uses the host window's DPI; the DLL does not change the host's DPI-awareness settings. Visual correctness remains a native gate.
 
-## Checks available on macOS
+## Portable and cross-target checks
 
 From the repository root:
 
@@ -103,13 +96,13 @@ cargo clippy -p ime-windows --target x86_64-pc-windows-msvc --all-targets -- -D 
 
 The portable suite covers non-BMP Han characters, emoji, combining sequences, invalid offsets, candidate syllable spans, immutable probes, shared `fixtures/basic.jsonl` replay, context isolation, focus/deactivation cancellation, stale tickets, duplicate output rejection, checksum failures, and panic containment. It also simulates TSF test/actual dispatch, including pass-through keys, releases, and Shift shortcuts.
 
-All three MSVC targets passed `cargo check` and target Clippy with warnings denied on macOS. The x86 check found and fixed pointer-width conversions around `GetWindowLongPtrW`/`SetWindowLongPtrW`; x64 checks alone did not detect that error.
+Historical macOS checks covered all three MSVC targets with `cargo check` and target Clippy. Current migration checks and their source identity are recorded separately. The x86 check found and fixed pointer-width conversions around `GetWindowLongPtrW`/`SetWindowLongPtrW`; x64 checks alone did not detect that error.
 
-The Windows-only tests are type-checked by cross-target checks but are not executed on macOS. They test COM interfaces, non-agile identity, aggregation rejection, server locks, idempotent deactivation, candidate strings/pages, stale callbacks, and panic HRESULTs. They also test dynamic restrictions, balanced Abort, held keys, context-stack focus, cleanup failure, and reentry with COM mocks. `tests/dll.rs` loads the real DLL and checks exports and unload behavior without registration. Build the DLL before running that test.
+Cross-target checks type-check the Windows-only tests; they do not execute them on Linux or macOS. They test COM interfaces, non-agile identity, aggregation rejection, server locks, idempotent deactivation, candidate strings/pages, stale callbacks, and panic HRESULTs. They also test dynamic restrictions, balanced Abort, held keys, context-stack focus, cleanup failure, and reentry with COM mocks. `tests/dll.rs` loads the real DLL and checks exports and unload behavior without registration. Build the DLL before running that test.
 
 ## Windows native build and CI preparation
 
-Prerequisites are a Windows runner, Rust 1.92.0 with the selected target, MSVC C++ build tools, Windows SDK libraries, and PowerShell. Verified OS builds are recorded in `docs/native-validation.md`; minimum supported Windows and SDK versions are not yet selected. Use a process architecture that can execute the selected target; ARM64 requires an ARM64 runner. x86 tests on x64 use a distinct WOW64 process and do not validate x86 desktop apps by themselves.
+Prerequisites are a Windows runner, Rust 1.92.0 with the selected target, MSVC C++ build tools, Windows SDK libraries, and PowerShell 7. Verified OS builds are recorded in `docs/native-validation.md`; minimum supported Windows and SDK versions are not yet selected. Use a process architecture that can execute the selected target; ARM64 requires an ARM64 runner. x86 tests on x64 use a distinct WOW64 process and do not validate x86 desktop apps by themselves.
 
 Run one target at a time from the repository root:
 
@@ -119,17 +112,17 @@ Run one target at a time from the repository root:
 ./platforms/windows/scripts/Build-Test.ps1 -Target aarch64-pc-windows-msvc
 ```
 
-The script checks formatting, runs target Clippy, and builds debug and release DLLs. It runs the unit and DLL loader tests in each profile. It records SHA-256 hashes for both DLLs and the development lexicon. It validates and copies the fixture and its digest beside `target/<target>/release/bopomofo_tsf.dll`. It writes only repository build outputs. It does not install tools, register the DLL, change input settings, or publish artifacts.
+The script checks formatting, runs target Clippy, and builds debug and release DLLs. It runs the unit and DLL loader tests in each profile. It records SHA-256 hashes for both DLLs and the generated dictionaries/manifests. It compiles the selected upstream default data, copies all assets and notices beside the release DLL, and runs the temporary-copy asset preflight tests. It writes only repository build outputs. It does not install tools, register the DLL, change input settings, or publish artifacts.
 
-`.github/workflows/windows.yml` runs the target-specific native checks for x64 and x86 on `windows-2022`, and ARM64 on `windows-11-arm`. These standard runner labels are available for this public repository. All three targets passed build and non-registration tests. Logs show that each target's test executables ran. `.github/workflows/checks.yml` retains the Windows host build and workspace tests. Neither workflow registers, enables, or publishes the IME. Native build/test CI does not replace desktop smoke tests.
+`.github/workflows/windows.yml` runs the target-specific native checks for x64 and x86 on `windows-2022`, and ARM64 on `windows-11-arm`. These standard runner labels are available for this public repository. The pre-migration run passed all three targets. Do not reuse that result for this source; retain each new run and target result separately. `.github/workflows/checks.yml` retains the Windows host build and workspace tests. Neither workflow registers, enables, or publishes the IME. Native build/test CI does not replace desktop smoke tests.
 
-All four PowerShell scripts passed AST parsing in an isolated official PowerShell 7.5.0 Linux amd64 container. `Build-Test.ps1` then passed on Windows x64 CI. The three registration/removal helper scripts were not invoked. Registry changes, registration, activation, and desktop input remain unverified.
+All five current PowerShell scripts passed AST parsing in an isolated official PowerShell 7.5.0 Linux amd64 container. `Test-Assets.ps1` passed a valid package and ten negative cases in temporary copies, including equal-length checksum corruption and a missing data license. It does not call the Windows registration context. `Register.ps1` and `Unregister.ps1` were not invoked. Registry changes, registration, activation, and desktop input remain unverified.
 
 ## Registration requires explicit authorization
 
 Registration and removal are **system changes**. Do not run the following commands without separate, explicit user approval. Script creation is not approval. Enabling or selecting the input method also requires approval.
 
-The scripts require an elevated PowerShell process with the same architecture as the DLL. They check the DLL PE architecture, the exact existing registration path, and the fixture digest. They never overwrite an existing installation. They do not copy or delete DLL/data files or select an input source. These are single-target development scripts, not a combined x64/x86/ARM64 installer. The fixed TSF identities are shared; do not remove one target while using another registration of the same service.
+The scripts require an elevated PowerShell process with the same architecture as the DLL. They check the DLL PE architecture, the exact existing registration path, and the v2 manifest, dictionary checksum and required notices. They never overwrite an existing installation. They do not copy or delete DLL/data files or select an input source. These are single-target development scripts, not a combined x64/x86/ARM64 installer. The fixed TSF identities are shared; do not remove one target while using another registration of the same service.
 
 Authorized registration example:
 
@@ -146,7 +139,7 @@ The exports write only this service's registration:
   - Windows controls the corresponding `Microsoft\CTF` registry representation and user preference caches.
   - The DLL does not choose a default input profile or call `EnableLanguageProfile`.
 
-Retain the previous DLL, lexicon, and digest before an update. Switch to another IME and close processes that loaded this DLL before removal or replacement. Use the exact registered DLL path:
+Retain the previous DLL and its complete matching asset/notice directory before an update. Never combine a v1 DLL or TSV package with v2 assets. Switch to another IME and close processes that loaded this DLL before removal or replacement. Use the exact registered DLL path:
 
 ```powershell
 ./platforms/windows/scripts/Unregister.ps1 `
@@ -158,7 +151,7 @@ Removal refuses a different path and removes only this service's COM/TSF identit
 
 ## Native smoke matrix
 
-All rows are currently **unverified**. Record OS build, SDK/MSVC/Rust versions, target, DLL build ID/hash, lexicon hash, app name/version/process architecture, steps, and result. Store the result in `docs/native-validation.md` through the repository's validation owner. Use only synthetic fixture text. Do not collect normal user input.
+All rows are currently **unverified**. Record OS build, SDK/MSVC/Rust versions, target, DLL build ID/hash, dictionary/manifest hashes, app name/version/process architecture, steps, and result. Store the result in `docs/native-validation.md` through the repository's validation owner. Use only synthetic fixture text. Do not collect normal user input.
 
 | Native check | Expected result |
 | --- | --- |
@@ -172,14 +165,14 @@ All rows are currently **unverified**. Record OS build, SDK/MSVC/Rust versions, 
 | Two document contexts, focus loss, app switch, context pop | Composition is context-local; old preedit and UI cancel; no delayed commit in the next context. |
 | Deactivate during queued edit; external composition termination | Pending callbacks cannot revive text or UI; cancellation is safe and does not retry a commit. |
 | Read-only, disabled, empty, and password/sensitive fields | TSF restrictions are respected; no alternate input path is used. |
-| Non-BMP/combining fixture selected text and cursor | Use `fixtures/unicode/lexicon.tsv` and `cases.jsonl` in a separately staged test package. `u Space Home End Down 1 Enter Enter` produces `𠀀é😀`: UTF-16 cursor 0 then 6, one commit, then no repeated commit. Core cursor 11 is a UTF-8 byte offset, not the TSF position. |
+| Non-BMP/emoji/combining fixture selected text and cursor | Use `fixtures/unicode/lexicon.tsv` and `cases.jsonl` in a separately staged test package. Four `u Space` pairs followed by `Home End Home Down 1 End Enter Enter` produce `𠀀é😀`: UTF-16 cursor 0 then 6, one commit, then no repeated commit. Core cursor 11 is a UTF-8 byte offset, not the TSF position. |
 | 100/150/200% DPI, two monitors, screen edges, delayed layout | Native UI stays usable and on screen; no focus transfer or stale popup. |
-| Missing/changed lexicon or digest before activation | Activation fails safely; another IME remains usable; no invalid data is used. |
+| Missing/changed/mixed-version dictionary or manifest before activation | Activation fails safely; another IME remains usable; no invalid data is used. |
 | Close host apps, authorized removal, restore previous version | Exact service keys are removed; other IMEs and retained files are unchanged. |
 
 ### Reproducible live-session cases
 
-Use [`basic.jsonl`](../fixtures/basic.jsonl) for the default lexicon. For Unicode, use the self-authored [`Unicode lexicon`](../fixtures/unicode/lexicon.tsv) and [replay](../fixtures/unicode/cases.jsonl). Prepare a separate DLL/data directory, validate/build that lexicon with `ime-cli`, and place its lowercase SHA-256 plus LF in `lexicon.sha256`. Do not replace a loaded DLL or an installed data file. Record the staged DLL and lexicon hashes. Installation and switching the registered path still require scoped authorization.
+Use [`basic.jsonl`](../fixtures/basic.jsonl) only with an explicitly staged baseline asset package, not the upstream default data. For Unicode, use the self-authored [`Unicode lexicon`](../fixtures/unicode/lexicon.tsv) and [replay](../fixtures/unicode/cases.jsonl). Prepare a separate DLL/data directory with `ime-cli build-assets fixtures/unicode/lexicon.tsv <new-directory>`. Copy its dictionary, manifest and six notice/license files beside the matching DLL; retain the source and generated asset hashes. Do not replace a loaded DLL or an installed data file. Record the staged DLL and lexicon hashes. Installation and switching the registered path still require scoped authorization.
 
 1. In an authorized UI-less host, type `1 8 Space Down Page Down`. Inspect the host's TSF UI-element presentation. Expected: the service popup is hidden, the selected absolute index is 9, and the page starts are 0 and 9. Finalize `豝`; expected: marked `豝`, then Enter commits it once. A second Enter must not repeat the text. If no UI-less host is available, record `blocked`, not a fallback-UI pass.
 2. In a host that requests service-owned UI, repeat the same sequence. Expected: the native listbox is at the caret and does not take focus. Click `豝` on page two; it stays marked until Enter. Record this separately from the UI-less case.

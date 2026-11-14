@@ -25,19 +25,25 @@ try {
     Invoke-Cargo -Arguments @('test', '-p', 'ime-windows', '--all-targets', '--target', $Target, '--locked')
     Invoke-Cargo -Arguments @('build', '-p', 'ime-windows', '--target', $Target, '--release', '--locked')
     Invoke-Cargo -Arguments @('test', '-p', 'ime-windows', '--all-targets', '--target', $Target, '--release', '--locked')
-    Invoke-Cargo -Arguments @('run', '-p', 'ime-cli', '--locked', '--', 'validate-lexicon', 'fixtures/lexicon.tsv')
+    # Create only a new staging profile. Existing staged assets are not overwritten.
+    $Assets = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString('N'))
+    Invoke-Cargo -Arguments @('run', '-p', 'ime-cli', '--locked', '--', 'build-assets', 'data/libchewing/source', $Assets)
     $Directory = Join-Path $Root "target/$Target/release"
-    Copy-Item -LiteralPath (Join-Path $Root 'fixtures/lexicon.tsv') -Destination (Join-Path $Directory 'lexicon.tsv') -Force
-    $Hash = (Get-FileHash -LiteralPath (Join-Path $Directory 'lexicon.tsv') -Algorithm SHA256).Hash.ToLowerInvariant()
-    [IO.File]::WriteAllText((Join-Path $Directory 'lexicon.sha256'), "$Hash`n", [Text.UTF8Encoding]::new($false))
+    try {
+        foreach ($File in Get-ChildItem -LiteralPath $Assets -File) {
+            Copy-Item -LiteralPath $File.FullName -Destination (Join-Path $Directory $File.Name) -Force
+        }
+    } finally { Remove-Item -LiteralPath $Assets -Recurse -Force }
+    $Hash = (Get-FileHash -LiteralPath (Join-Path $Directory 'assets.json') -Algorithm SHA256).Hash.ToLowerInvariant()
     foreach ($Profile in @('debug', 'release')) {
         $Dll = Join-Path $Root "target/$Target/$Profile/bopomofo_tsf.dll"
         $DllHash = (Get-FileHash -LiteralPath $Dll -Algorithm SHA256).Hash.ToLowerInvariant()
         Write-Output "$Target/$Profile/bopomofo_tsf.dll SHA-256 $DllHash"
     }
-    Write-Output "lexicon.tsv SHA-256 $Hash"
+    & (Join-Path $PSScriptRoot 'Test-Assets.ps1') -AssetDirectory $Directory
+    Write-Output "assets.json SHA-256 $Hash"
     Write-Output "Native build and non-registration tests passed for $Target."
-    Write-Output "Development fixture directory: $Directory"
+    Write-Output "Development asset directory: $Directory"
     Write-Output 'TSF installation, activation, and desktop smoke tests were NOT run.'
 } finally {
     Pop-Location

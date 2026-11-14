@@ -1,36 +1,41 @@
 # Fixtures
 
-`lexicon.tsv` 是本專案自製的 39-entry 測試詞庫，依 repository 的 AGPL v3 license 散布。詞頻是測試數值，不是語料統計。
+`lexicon.tsv` 是自製的 39-entry baseline，使用 repository 的 AGPL-3.0-only。Scores 是測試值，不是 corpus 統計。三平台 default build 已改用所選上游資料；baseline native smoke 必須明確建立 fixture package。
 
-此詞庫只用於 replay、FFI、adapter contract 與明確指定的 fixture 開發 bundle。macOS 預設 bundle 使用獨立的 [CNS11643 supplement](../data/cns11643/README.md)。Baseline native smoke cases 必須先建立 fixture bundle；步驟見 [macOS guide](../docs/macos.md#authorized-native-smoke-test)。不得用 fixture 結果宣稱產品輸入品質或代表性效能已通過驗收。
-
-JSONL case 每行包含 `event` 與選用的 `expect`。`expect` 是 Output 的遞迴 object subset；array 長度必須相同。省略 `expect` 不代表已驗證輸出。
-
-回歸測試不得由目前程式輸出自動覆寫預期值。預期 preedit、commit 與 status 必須由 input spec 決定。
+每行 JSONL 包含 `event` 與選用的 `expect`。Expected object 是遞迴 subset；array 長度必須相同。省略 `expect` 不等於通過驗證。Expectations 依 [input specification](../docs/input-spec.md) 手寫，不得從 actual output 自動覆寫。
 
 ## Replay pairing
 
-下列資料組不可互換。Root-level replay glob 必須排除 `cns11643.jsonl`，再以 CNS 詞庫獨立執行，不得排除其測試 coverage。
+每組 source 先以 `ime-cli build-assets` 編譯到獨立 directory，再傳給 replay。TSV 不再直接提供給 runtime。
 
-| Cases | Lexicon |
+| Cases | Authoring source |
 | --- | --- |
-| `basic.jsonl`、`tones.jsonl`、`modes.jsonl`、`editing.jsonl`、`limit-64.jsonl`、`gestures.jsonl`、`reselection.jsonl`、`aliases.jsonl`、`ui-abort.jsonl` | `lexicon.tsv`，39-entry baseline。 |
-| `cns11643.jsonl` | [`../data/cns11643/lexicon.tsv`](../data/cns11643/lexicon.tsv)。 |
+| `basic`、`tones`、`modes`、`editing`、`limit-64`、`gestures`、`reselection`、`aliases`、`ui-abort` `.jsonl` | `lexicon.tsv`，39 entries。 |
+| `cns11643.jsonl` | `../data/cns11643/lexicon.tsv`。 |
 | `lexicon-quality/cases.jsonl` | `lexicon-quality/lexicon.tsv`。 |
 | `unicode/cases.jsonl` | `unicode/lexicon.tsv`。 |
 
-`cns11643.jsonl` 的 81 個事件涵蓋 `我`、`國`、`你好`、五種新增 rimes，以及 `ㄧˋ` 第 154 個候選（absolute index 153）的翻頁選取與單次 commit。每頁九個候選，從 page 0 執行 17 次 Page Down 後，按 `1` 選取 `齸`；Enter 只 commit 一次。預期值由 CNS 指定字區、固定排序規則與 input specification 決定，不由目前 engine 輸出回寫。
+Root-level glob 排除 CNS case，但 CNS、quality 與 Unicode 都必須另行執行。Wrong-profile negative test 必須拒絕 CNS case 配 baseline assets，不得以移除 coverage 解決失敗。
 
-`ui-abort.jsonl` checks a balanced logical Escape tap followed by Shift mode changes. Windows adapter tests verify that candidate Abort sends the matching press and release.
+```bash
+cargo run -p ime-cli --locked -- build-assets fixtures/lexicon.tsv target/fixture-assets
+cargo run -p ime-cli --locked -- replay target/fixture-assets fixtures/basic.jsonl
+```
 
-## Lexicon quality
+CNS 的 81 個 events 涵蓋 `我`、`國`、`你好`、新增 rimes 與 `ㄧˋ` 第 154 個候選。17 次 Page Down 後按 `1` 選取 `齸`，Enter 只 commit 一次。原 CNS source bytes 與授權不變。
 
-[`lexicon-quality/`](lexicon-quality/README.md) 使用獨立的自製 lexicon 與人工 expectations。它只補齊 phrase heteronym 與 replay tie-order cases。既有 homophones、length competition 與 unknown fallback 沿用原 tests，不重複新增。Baseline `lexicon.tsv` 不變。
+## Selection and quality
+
+上游一次提供一個 selection point。`editing`／`reselection` 明確用 Tab 改為單音節候選，不假設不同 span 混列。`ui-abort` 保留 balanced Escape press／release 與後續 Shift checks。
+
+[Quality cases](lexicon-quality/README.md) 保留自製 heteronym 與 tie-order expectations。Default data、fixture ranking 或 synthetic stress 都不證明 Taiwan corpus 品質。Unknown reading 現在保留可編輯 spelling，不自動產生可提交的 raw composition。
 
 ## Unicode ranges
 
-`unicode/lexicon.tsv` 將單音節 `ㄧ` 對應到人工文字 `𠀀é😀`，score 1 也是測試值，不是真實 reading 或 frequency。`unicode/cases.jsonl` 由人工固定 Home／End、選字、單次 commit 與取消的結果。
+Unicode source 有兩筆自製資料：單音節 `ㄧ` 對應 `𠀀`；四個 `ㄧ` 對應四個 scalars `𠀀é😀`。Scores 不是實際 frequency。
 
-此文字包含 non-BMP Han character、`e` 加 U+0301 combining mark，以及 emoji。UTF-8 長度為 `4 + 1 + 2 + 4 = 11` bytes；UTF-16 長度為 `2 + 1 + 1 + 2 = 6` code units。Core cursor 使用 UTF-8 byte offset；adapter 必須轉換為 native range 單位，不得假設一個音節只含一個 Unicode scalar。
+19-record replay 手寫四次 `u Space`、Home／End、Home／Down／1／End、單次 commit 與取消。選字 span 為 `[0,4)`。上游選字保留原 cursor；因此選字後明確用 End 移到結尾。
 
-這兩個子目錄必須各自搭配同目錄的 lexicon 與 JSONL。不得將它們加入使用 baseline lexicon 的 root-level replay glob。`repository_fixtures` test 分別檢查這兩組檔案。
+完整文字包含 non-BMP Han、`e`、U+0301 combining mark 與 emoji。UTF-8 長度為 `4 + 1 + 2 + 4 = 11` bytes；UTF-16 長度為 `2 + 1 + 1 + 2 = 6` units。Core 測試也檢查 phrase 內部、combining scalar 前的 byte offset 5。不得混用 bytes、scalars、graphemes 與 UTF-16 units。
+
+原本單音節對應四 scalars 的 source 不符合上游模型，asset build 必須拒絕。新的相容表示保留完整 Unicode replay；adapter synthetic range tests 仍檢查任意文字與非法 offsets，不刪除 emoji／combining coverage。

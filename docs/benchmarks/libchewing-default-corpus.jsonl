@@ -1,0 +1,8 @@
+{"event":{"type":"key","key":"s"},"expect":{"consumed":true,"commit":null}}
+{"event":{"type":"key","key":"u"},"expect":{"consumed":true,"commit":null}}
+{"event":{"type":"key","key":"3"},"expect":{"consumed":true,"commit":null}}
+{"event":{"type":"key","key":"c"},"expect":{"consumed":true,"commit":null}}
+{"event":{"type":"key","key":"l"},"expect":{"consumed":true,"commit":null}}
+{"event":{"type":"key","key":"3"},"expect":{"consumed":true,"commit":null,"snapshot":{"preedit":"你好"}}}
+{"event":{"type":"key","key":"enter"},"expect":{"consumed":true,"commit":"你好","snapshot":{"preedit":""}}}
+{"event":{"type":"key","key":"enter"},"expect":{"consumed":false,"commit":null,"snapshot":{"preedit":""}}}

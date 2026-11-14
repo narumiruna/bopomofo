@@ -1,5 +1,5 @@
 //! Context-local ordering and panic isolation, independent of COM.
-use ime_core::{Engine, Event, KeyEvent, Lexicon, Output, Snapshot};
+use ime_core::{Assets, Engine, Event, KeyEvent, Output, Snapshot};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
@@ -23,7 +23,7 @@ pub(crate) fn boundary<T>(call: impl FnOnce() -> T) -> Result<T, ()> {
 }
 
 impl Session {
-    pub fn new(lexicon: Arc<Lexicon>) -> Self {
+    pub fn new(lexicon: Arc<Assets>) -> Self {
         let mut engine = Engine::new(lexicon);
         engine.handle(Event::Activate);
         Self {
@@ -94,7 +94,7 @@ mod tests {
     #[test]
     fn edit_order_prevents_duplicate_or_reordered_commit() {
         // Ordering does not depend on a lexicon or engine state.
-        let mut order = Session::new(Arc::new(Lexicon::parse("# bopomofo-lexicon-v1\n").unwrap()));
+        let mut order = Session::new(fixture());
         let (first, _) = order.event(Event::Reset);
         let (second, _) = order.event(Event::Reset);
         assert!(!order.accept(second));
@@ -103,10 +103,8 @@ mod tests {
         assert!(order.accept(second));
     }
 
-    fn fixture() -> Arc<Lexicon> {
-        let path =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/lexicon.tsv");
-        Arc::new(Lexicon::parse(&std::fs::read_to_string(path).unwrap()).unwrap())
+    fn fixture() -> Arc<Assets> {
+        ime_test_support::fixture()
     }
 
     fn key(name: &str) -> Event {

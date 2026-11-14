@@ -10,7 +10,7 @@ if (-not $AuthorizeSystemChange) {
 if ([String]::IsNullOrWhiteSpace($DllPath)) { throw 'DllPath is required; no interactive prompt is used.' }
 . (Join-Path $PSScriptRoot 'Registration.Common.ps1')
 $Context = Get-TsfRegistrationContext -DllPath $DllPath
-Assert-TsfLexicon -Directory ([IO.Path]::GetDirectoryName($Context.Path))
+Assert-TsfAssets -Directory ([IO.Path]::GetDirectoryName($Context.Path))
 if ($null -ne $Context.ExistingPath) {
     throw 'A registration already exists. Switch to another IME, close affected apps, and explicitly unregister that installation first.'
 }

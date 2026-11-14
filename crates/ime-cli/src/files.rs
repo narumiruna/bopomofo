@@ -1,5 +1,6 @@
+use crate::source::Source;
 use crate::{Error, Result};
-use ime_core::Lexicon;
+use ime_core::Assets;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
@@ -20,19 +21,28 @@ pub(crate) struct LexiconSummary {
     pub(crate) bytes: usize,
 }
 
-pub(crate) struct LoadedLexicon {
-    pub(crate) data: Arc<Lexicon>,
+pub(crate) struct LoadedAssets {
+    pub(crate) data: Arc<Assets>,
     pub(crate) summary: LexiconSummary,
     pub(crate) initialization_ns: u64,
 }
 
+pub(crate) struct LoadedLexicon {
+    pub(crate) data: Arc<Source>,
+    pub(crate) summary: LexiconSummary,
+}
+
 pub(crate) fn read_input(path: &Path) -> Result<Vec<u8>> {
+    read_bounded(path, MAX_INPUT_BYTES)
+}
+
+pub(crate) fn read_bounded(path: &Path, maximum: usize) -> Result<Vec<u8>> {
     let file = File::open(path).map_err(|_| Error::new("input_open_failed"))?;
     let mut bytes = Vec::new();
-    file.take((MAX_INPUT_BYTES + 1) as u64)
+    file.take((maximum + 1) as u64)
         .read_to_end(&mut bytes)
         .map_err(|_| Error::new("input_read_failed"))?;
-    if bytes.len() > MAX_INPUT_BYTES {
+    if bytes.len() > maximum {
         return Err(Error::new("input_byte_limit"));
     }
     Ok(bytes)
@@ -50,21 +60,15 @@ pub(crate) fn load_lexicon(path: &Path) -> Result<LoadedLexicon> {
     let bytes = read_input(path)?;
     let text = std::str::from_utf8(&bytes).map_err(|_| Error::new("invalid_lexicon_encoding"))?;
     let sha256 = checksum(&bytes);
-    let start = Instant::now();
-    // Core owns all schema and reading validation. Never display its source error.
-    let data = Arc::new(Lexicon::parse(text).map_err(|_| Error::new("invalid_lexicon"))?);
-    let initialization_ns = elapsed_ns(start);
+    // Authoring validation uses the upstream phonetic parser. Never print source data.
+    let data = Arc::new(Source::parse(text).map_err(|_| Error::new("invalid_lexicon"))?);
     let summary = LexiconSummary {
         format: "bopomofo-lexicon-v1",
         sha256,
         entries: data.entries().len(),
         bytes: bytes.len(),
     };
-    Ok(LoadedLexicon {
-        data,
-        summary,
-        initialization_ns,
-    })
+    Ok(LoadedLexicon { data, summary })
 }
 
 pub(crate) fn build_lexicon(input: &Path, destination: &Path) -> Result<LexiconSummary> {
@@ -74,7 +78,7 @@ pub(crate) fn build_lexicon(input: &Path, destination: &Path) -> Result<LexiconS
     write_lexicon(destination, &lexicon.data)
 }
 
-pub(crate) fn write_lexicon(destination: &Path, lexicon: &Lexicon) -> Result<LexiconSummary> {
+pub(crate) fn write_lexicon(destination: &Path, lexicon: &Source) -> Result<LexiconSummary> {
     let canonical = lexicon.to_text();
     if canonical.len() > MAX_INPUT_BYTES {
         return Err(Error::new("output_byte_limit"));

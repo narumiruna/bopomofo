@@ -1,10 +1,8 @@
 //! Deterministic, offline Zhuyin input engine. No platform or file I/O.
-pub mod decoder;
+pub mod assets;
 mod engine;
-pub mod lexicon;
-pub mod parser;
+pub use assets::Assets;
 pub use engine::Engine;
-pub use lexicon::Lexicon;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

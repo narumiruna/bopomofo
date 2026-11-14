@@ -9,7 +9,7 @@ private func require(_ condition: @autoclosure () throws -> Bool) throws {
 }
 private func manifest(_ data: Data) -> Data {
     let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    return Data((digest + "\n").utf8)
+    return try! JSONSerialization.data(withJSONObject: ["format":"bopomofo-assets-v1","engine":"chewing-0.13.1","builder":"bopomofo-assets-v1","data_version":"test","source_sha256":String(repeating:"0",count:64),"files":[["name":"dictionary.dat","bytes":data.count,"sha256":digest]]], options:[.sortedKeys])
 }
 private func keys(_ names: [String], _ engine: CoreEngine) throws -> EngineOutput {
     var result = try engine.send(.reset)
@@ -24,28 +24,28 @@ private func keys(_ names: [String], _ engine: CoreEngine) throws -> EngineOutpu
 struct FFITests {
     static func main() {
         do {
-            guard CommandLine.arguments.count == 5 else { throw TestFailure.contract }
+            guard CommandLine.arguments.count == 7 else { throw TestFailure.contract }
             let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[1]))
             let pinned = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[2]))
-            let lexicon = try VerifiedLexicon(data: data, manifest: pinned)
-            try require(pinned == manifest(data))
-            for badManifest in [Data(), Data(repeating: 0x30, count: 65), Data(pinned.dropLast()),
+            let lexicon = try VerifiedAssets(data: data, manifest: pinned)
+            try require(bpm_abi_version() == 2)
+            for badManifest in [Data(), Data(repeating: 0x30, count: 65), Data(pinned.dropLast(3)),
                                 Data((String(repeating: "0", count: 64) + "\n").utf8)] {
                 do {
-                    _ = try VerifiedLexicon(data: data, manifest: badManifest)
+                    _ = try VerifiedAssets(data: data, manifest: badManifest)
                     throw TestFailure.contract
                 } catch AdapterError.integrity { assertions += 1 }
             }
             do {
-                _ = try VerifiedLexicon(data: data + Data("\n".utf8), manifest: pinned)
+                _ = try VerifiedAssets(data: data + Data("\n".utf8), manifest: pinned)
                 throw TestFailure.contract
             } catch AdapterError.integrity { assertions += 1 }
             for _ in 0..<32 {
-                let engine = try CoreEngine(lexicon: lexicon)
+                let engine = try CoreEngine(assets: lexicon)
                 try require(try engine.snapshot().preedit.isEmpty)
             }
-            let first = try CoreEngine(lexicon: lexicon)
-            let second = try CoreEngine(lexicon: lexicon)
+            let first = try CoreEngine(assets: lexicon)
+            let second = try CoreEngine(assets: lexicon)
             let phrase = try keys(["s", "u", "3", "c", "l", "3"], first)
             try require(phrase.snapshot.preedit == "你好" && phrase.commit == nil)
             try require(try second.snapshot().preedit.isEmpty)
@@ -58,7 +58,7 @@ struct FFITests {
             }
 
             for event in [EngineEvent.reset, .focusLost, .deactivate] {
-                let lifecycleEngine = try CoreEngine(lexicon: lexicon)
+                let lifecycleEngine = try CoreEngine(assets: lexicon)
                 let open = try keys(["1", "8", "space", "down"], lifecycleEngine)
                 var lifecycleState = PresentationState()
                 let before = try lifecycleState.accept(open, delivery: 1)!
@@ -99,10 +99,11 @@ struct FFITests {
             try require(try state.accept(cancelled, delivery: 3)!.effects == [.mark("", NSRange(location: 0, length: 0))])
             try require(state.select(chosen.token, text: chosen.text) == nil)
 
-            let unicode = "𠀀😀e\u{301}"
-            let custom = Data("# bopomofo-lexicon-v1\nㄅㄚ\t\(unicode)\t1\n".utf8)
-            let unicodeEngine = try CoreEngine(lexicon: VerifiedLexicon(data: custom, manifest: manifest(custom)))
-            let unicodeOutput = try keys(["1", "8", "space"], unicodeEngine)
+            let unicode = "𠀀é😀"
+            let custom = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[5]))
+            let unicodeManifest = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[6]))
+            let unicodeEngine = try CoreEngine(assets: VerifiedAssets(data: custom, manifest: unicodeManifest))
+            let unicodeOutput = try keys(["u", "space", "u", "space", "u", "space", "u", "space"], unicodeEngine)
             try require(unicodeOutput.snapshot.preedit == unicode)
             var unicodeState = PresentationState()
             try require(try unicodeState.accept(unicodeOutput, delivery: 1)!.selection.location == 6)
@@ -110,7 +111,7 @@ struct FFITests {
             try require(try unicodeState.accept(unicodeCommit, delivery: 2)!.effects == [.commit(unicode)])
             try require(try unicodeState.accept(unicodeCommit, delivery: 2) == nil)
 
-            let modifierEngine = try CoreEngine(lexicon: lexicon)
+            let modifierEngine = try CoreEngine(assets: lexicon)
             var translator = KeyTranslator()
             func forward(_ input: NativeKey) throws -> EngineOutput? {
                 guard let key = translator.translate(input) else { return nil }
@@ -137,7 +138,7 @@ struct FFITests {
             try require(try forward(NativeKey(kind: .flags, code: 57, modifiers: NativeModifiers(capsLock: true)))!.snapshot.mode == "chinese")
             try require(try forward(NativeKey(kind: .flags, code: 57))!.snapshot.mode == "latin")
 
-            let heldEngine = try CoreEngine(lexicon: lexicon)
+            let heldEngine = try CoreEngine(assets: lexicon)
             var heldTranslator = KeyTranslator()
             func forwardHeld(_ input: NativeKey) throws -> EngineOutput {
                 try heldEngine.send(.key(heldTranslator.translate(input)!))
@@ -149,7 +150,7 @@ struct FFITests {
             _ = try forwardHeld(NativeKey(kind: .flags, code: 56, modifiers: NativeModifiers(shift: true)))
             try require(try forwardHeld(NativeKey(kind: .flags, code: 56)).snapshot.mode == "latin")
 
-            let aliasEngine = try CoreEngine(lexicon: lexicon)
+            let aliasEngine = try CoreEngine(assets: lexicon)
             var aliasTranslator = KeyTranslator()
             func alias(_ input: NativeKey) throws -> EngineOutput {
                 try aliasEngine.send(.key(aliasTranslator.translate(input)!))
@@ -163,19 +164,19 @@ struct FFITests {
             _ = try alias(NativeKey(kind: .flags, code: 56, modifiers: NativeModifiers(shift: true)))
             try require(try alias(NativeKey(kind: .flags, code: 56)).snapshot.mode == "latin")
 
-            let shortcutEngine = try CoreEngine(lexicon: lexicon)
+            let shortcutEngine = try CoreEngine(assets: lexicon)
             let pending = try keys(["1"], shortcutEngine)
             let shortcut = try shortcutEngine.send(.key(KeyEvent(key: "a", meta: true)))
             try require(!shortcut.consumed && shortcut.snapshot == pending.snapshot)
             do {
                 let invalid = Data("invalid".utf8)
-                _ = try CoreEngine(lexicon: VerifiedLexicon(data: invalid, manifest: manifest(invalid)))
+                _ = try CoreEngine(assets: VerifiedAssets(data: invalid, manifest: manifest(invalid)))
                 throw TestFailure.contract
-            } catch AdapterError.initialization { assertions += 1 }
+            } catch AdapterError.integrity { assertions += 1 }
             let cnsPath = URL(fileURLWithPath: CommandLine.arguments[3])
             let cnsData = try Data(contentsOf: cnsPath)
             let cnsManifest = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[4]))
-            let cnsEngine = try CoreEngine(lexicon: VerifiedLexicon(data: cnsData, manifest: cnsManifest))
+            let cnsEngine = try CoreEngine(assets: VerifiedAssets(data: cnsData, manifest: cnsManifest))
             for (sequence, text) in [
                 (["j", "i", "3"], "我"), (["e", "j", "i", "6"], "國"),
                 (["q", "u", "8", "space"], "啪"), (["z", "u", "l", "4"], "覅"),
@@ -200,7 +201,7 @@ struct FFITests {
             try require(try cnsEngine.send(.key(KeyEvent(key: "enter"))).commit == "齸")
             try require(try cnsEngine.send(.key(KeyEvent(key: "enter"))).commit == nil)
             try require(cnsState.select(tailCandidate.token, text: tailCandidate.text) == nil)
-            for name in ["Lexicon-NOTICE.txt", "Lexicon-LICENSE.txt", "Project-LICENSE.txt"] {
+            for name in ["Data-NOTICE.txt", "Data-LICENSE.txt", "Project-LICENSE.txt", "Engine-LICENSE.txt", "Engine-NOTICE.txt"] {
                 try require(try Data(contentsOf: cnsPath.deletingLastPathComponent().appendingPathComponent(name)).count > 0)
             }
             print("Swift C ABI integration: \(assertions) assertions passed")

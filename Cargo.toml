@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/ime-core", "crates/ime-ffi", "crates/ime-cli", "platforms/windows"]
+members = ["crates/ime-core", "crates/ime-ffi", "crates/ime-cli", "crates/ime-test-support", "platforms/windows"]
 resolver = "3"
 
 [workspace.package]
@@ -13,7 +13,10 @@ repository = "https://github.com/narumiruna/bopomofo"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 ime-core = { path = "crates/ime-core" }
+ime-test-support = { path = "crates/ime-test-support" }
 sha2 = "0.10"
+chewing = { version = "=0.13.1", default-features = false }
+log = { version = "0.4", features = ["max_level_off"] }
 
 [profile.release]
 panic = "unwind"

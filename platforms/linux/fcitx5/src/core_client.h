@@ -10,7 +10,7 @@
 
 namespace bopomofo {
 using Json = nlohmann::json;
-inline constexpr std::size_t PageSize = 9; // ime-core::PAGE_SIZE, ABI v1.
+inline constexpr std::size_t PageSize = 9; // ime-core::PAGE_SIZE, ABI v2.
 inline constexpr std::size_t MaxLexiconBytes = 32 * 1024 * 1024;
 
 struct Candidate {
@@ -36,10 +36,18 @@ struct Output {
     std::optional<std::string> status;
 };
 
-std::string readLexicon(const std::string &path);
-std::string readChecksum(const std::string &path);
-void verifyLexicon(const std::string &lexicon, const std::string &sha256);
-std::string loadVerifiedLexicon(const std::string &path, const std::string &checksumPath);
+struct VerifiedAssets {
+    std::string data;
+    std::string manifest;
+    BpmAsset descriptor() const {
+        return {reinterpret_cast<const uint8_t *>("dictionary.dat"), 14,
+                reinterpret_cast<const uint8_t *>(data.data()), data.size()};
+    }
+};
+std::string readAsset(const std::string &path, std::size_t maximum = MaxLexiconBytes);
+std::string readManifest(const std::string &path);
+void verifyAssets(const VerifiedAssets &assets);
+VerifiedAssets loadVerifiedAssets(const std::string &path, const std::string &manifestPath);
 Snapshot decodeSnapshot(const Json &json);
 Output decodeOutput(const Json &json);
 Json keyEvent(const std::string &key);
@@ -47,7 +55,7 @@ Json keyEvent(const std::string &key);
 // FFI allocations never use a C++ allocator. Each handle is context-local.
 class CoreClient {
 public:
-    explicit CoreClient(const std::string &lexicon);
+    explicit CoreClient(const VerifiedAssets &assets);
     Output handle(const Json &event);
     Snapshot snapshot();
     CoreClient(const CoreClient &) = delete;

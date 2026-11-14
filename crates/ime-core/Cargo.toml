@@ -8,3 +8,11 @@ repository.workspace = true
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+chewing.workspace = true
+der = { version = "=0.7.10", features = ["std"] }
+log.workspace = true
+
+[dev-dependencies]
+ime-test-support.workspace = true

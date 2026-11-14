@@ -2,113 +2,73 @@
 
 ## Scope and state
 
-本規格固定第一版的 Traditional Chinese、標準 Dachen 操作。所有 adapter 使用相同規則。
+所有 adapter 使用 Rust `ime-core` 封裝的 libchewing 0.13.1。第一版採 Traditional Chinese、標準 Dachen、完全離線與 context-local state。上游負責 parser、composition、conversion 與候選；wrapper 只處理共用安全契約、mode／modifier 與 UI selection 邊界。
 
 ```mermaid
 stateDiagram-v2
     [*] --> Idle
-    Idle --> Phonetic: Dachen phonetic key
-    Phonetic --> Composing: Tone or Space completes syllable
-    Composing --> Phonetic: Next phonetic key
+    Idle --> Phonetic: Dachen key
+    Phonetic --> Composing: Known syllable and tone
+    Phonetic --> Phonetic: Unknown reading or rejected operation
+    Composing --> Phonetic: Next Dachen key
     Composing --> Selecting: Down
     Selecting --> Composing: Select or Escape
     Composing --> Idle: Enter or Space commits
-    Phonetic --> Idle: Escape cancels
-    Composing --> Idle: Escape cancels
-    Selecting --> Idle: FocusLost / Deactivate / Reset
-    Phonetic --> Idle: FocusLost / Deactivate / Reset
-    Composing --> Idle: FocusLost / Deactivate / Reset
+    Phonetic --> Idle: Escape or lifecycle cancel
+    Composing --> Idle: Escape or lifecycle cancel
+    Selecting --> Idle: Lifecycle cancel
 ```
 
-Idle 表示 composition 為空。Phonetic 表示有未完成音節。Composing 表示已有完整音節且沒有未完成音節。Selecting 是明確的候選選取模式。
+新 context 為 active、Chinese mode。`Deactivate` 取消 composition 並停用 context。`FocusLost`／`Reset` 取消 composition、清除 held-key bookkeeping，但保留 mode。所有 lifecycle events 均不 commit。
 
-`Engine` 新建後為 active、Chinese mode。`Activate` 啟用 context。`Deactivate` 取消 composition 並停用 context。`FocusLost` 與 `Reset` 只取消 composition。這些事件均不 commit。Mode 保留於同一個 context。
+## Key and probe contract
 
-## Key contract
+- Adapter 傳送標準化 key、`ctrl`、`alt`、`meta`、`shift`、`repeat`、`release`；Dachen 依 US physical position，不依 host text layout。
+- KeyUp 不產生文字或 commit；post-event modifier flags、透傳按鍵的 press／release 與 modifier transitions 仍須傳入 core。
+- Shift 單獨操作在最後一個 Shift release 切換 Chinese／Latin mode。Chord、held keys、repeat、左右 Shift 與 Return／keypad Enter aliases 不得誤觸 mode 切換。
+- 非 repeat `caps_lock` 切換 mode。Mode 切換取消 composition，不 commit。
+- Ctrl／Alt／Meta shortcuts 一律透傳，不呼叫上游加詞功能，不改 composition。Latin／inactive context 透傳一般按鍵。
+- 空 composition 的非 Dachen key 透傳。Adapter 保留原始 native event，不模擬按鍵。
+- `probe` 與實際事件使用相同的 routing predicate。Probe 只複製 bounded modifier bookkeeping，不呼叫 mutating Editor API、不執行事件、不保存或 replay 真實輸入歷史。
+- Repeated probes 不改變 snapshot、generation、候選、commit、dictionary 或下一次實際 consumed 結果。Windows test callback 不得提前輸入或提交。
 
-Adapter 傳送標準化小寫 key 名稱與 `ctrl`、`alt`、`meta`、`shift`、`repeat`、`release`。Dachen 使用 US keyboard 的 physical key，不依使用者目前文字 layout 產生的字元。特殊鍵名見下表。
+## Phonetic input and editing
 
-- KeyUp 不產生字元或 commit。
-- Modifier flags 表示事件完成後的狀態；adapter 必須將 XIM 等介面的 pre-release mask 正規化。
-- 非文字 modifier key 使用 `control`、`alt`、`meta` 等固定名稱，press／release 均須送入 core。
-- Shift 單獨按下後放開，切換 Chinese／Latin mode。
-  - Shift 按住期間若有其他 key，或按下前已有其他 key 按住，放開時不切換。
-  - 同時使用左右 Shift 時，最後一個 Shift 放開後才判定。
-  - 第二個 Shift keydown 不重設既有 chord 狀態。
-  - 重複 Shift keydown 不重複切換。
-  - Adapter 必須將透傳按鍵的 press／release 也送入 core，以維護 chord 狀態。
-  - Return 與 keypad Enter 等共用 logical key 的實體按鍵，各自計算 press／release；全部放開前不視為 Shift 單獨操作。
-- `caps_lock` 非 repeat keydown 切換 mode。
-- Mode 切換取消 composition，不 commit。
-- `ctrl`、`alt` 或 `meta` shortcut 一律透傳，composition 保持不變。
-- Latin mode、inactive context、空 composition 的非 Dachen key 一律透傳。
-- 透傳時 adapter 保留原始 native event，不模擬按鍵。
+- Dachen mapping 與 phonetic slot 操作使用上游 `Standard`，不維護第二份 layout 或自製音節 parser。
+- First tone 使用 Space，其他 tones 使用 `6`／`3`／`4`／`7`。Tone 只能完成目前 pending syllable；空 buffer 的 tone key 回報 `invalid_syllable`。
+- Tone 完成前先用上游 dictionary 查詢完整 reading；沒有對應單字時保留可編輯 pending buffer，回報 `unknown_reading`。不得使用會清除未知輸入的上游預設路徑。
+- Pending 時 Enter 回報 `invalid_syllable` 並保留文字。Cursor、Delete、Down 等非 phonetic 操作不得丟失 pending text；Backspace 依上游刪除最後 phonetic component。
+- Escape 清空 composition；候選模式的 Escape 只關閉候選。取消不 commit。
+- 完成組字後 Enter／Space commit 整段文字一次並清空。沒有組字時透傳。
+- 已完成音節的 Backspace、Delete、Home／End、Left／Right、conversion 與選字鎖定交由上游 Editor 處理。
+- 單次 composition 最多 64 音節，包含 pending。達上限後拒絕新的音節、回報 `limit_reached`，不丟棄或自動 commit；上游 auto-commit threshold 明確停用。
 
-## Dachen and syllables
+## Candidates and Unicode
 
-Dachen phonetic mapping 為 `1/q/a/z/2/w/s/x/e/d/c/r/f/v/5/t/g/b/y/h/n/u/j/m/8/i/k/,/9/o/l/./0/p/;/\u002f/-`，分別對應 `ㄅㄆㄇㄈㄉㄊㄋㄌㄍㄎㄏㄐㄑㄒㄓㄔㄕㄖㄗㄘㄙㄧㄨㄩㄚㄛㄜㄝㄞㄟㄠㄡㄢㄣㄤㄥㄦ`。
+- Down 明確進入候選模式；非候選模式的 snapshot 不提供預覽 candidate list。
+- 每頁 9 個候選，整份清單最多 256 個。Up／Down／Left／Right 移動 highlight，Page Up／Down 換頁，不循環。
+- `1`…`9` 選取目前頁的項目；Enter／Space 選取 highlighted candidate。選字不 commit。
+- Tab 在上游允許的 selection points 間切換詞組長度；沒有下一個時回到第一個。候選順序與可選 span 使用上游結果，不重做排序或斷詞。
+- UI select event 使用目前 context、snapshot `generation` 與 absolute candidate index。Stale generation、失效 context 或越界 index 不改 composition、不 commit，回報 `stale_selection`。
+- Snapshot cursor 為合法 UTF-8 byte offset。Candidate start／end 為音節位置，不是 byte offset；目前 dictionary 要求每音節對應一個 Unicode scalar，可含非 BMP character。
+- 詞組內部的 cursor 映射到對應 scalar 的 byte offset；不得一律退到 interval 起點。macOS／Windows adapter 明確轉換成 UTF-16 code units，不能使用 grapheme count。
+- 原單音節對應 `𠀀é😀` 的任意長度 mapping 不符合上游模型，asset build 明確拒絕。Unicode fixture 使用四個 `ㄧ` 對應四個 scalars，保留完整 `𠀀é😀`、11-byte／6-unit、選字、單次 commit 與取消測試。
+- Commit 是該事件的 transient output；wrapper 讀取後立即 `ack`。Snapshot、重複 reset、過期 callback 或 UI 更新不得重送 commit。
 
-Parser 包含 CNS11643 字音需要的 `ㄆㄧㄚ`、`ㄈㄧㄠ`、`ㄋㄨㄟ`、`ㄌㄩㄢ` 與 `ㄙㄟ`。來源與排除的不完整讀音見 [CNS guide](../data/cns11643/README.md)。
+## Migration differences
 
-同類 phonetic slot 可替換，但不得形成無法完成的音節。遭拒的輸入保留原有 buffer。Backspace 刪除最後一個 phonetic slot。合法音節與 slot 替換由 parser table tests 固定。
-
-| Tone | Key | Canonical example |
-| --- | --- | --- |
-| 1 | `space` | `18 space` → `ㄅㄚ` → `八` |
-| 2 | `6` | `186` → `ㄅㄚˊ` → `拔` |
-| 3 | `3` | `183` → `ㄅㄚˇ` → `把` |
-| 4 | `4` | `184` → `ㄅㄚˋ` → `爸` |
-| 5 | `7` | `187` → `ㄅㄚ˙` → `罷` |
-
-Canonical 第一聲不附符號。Parser 接受明示 `ˉ` 與前置 `˙` 並正規化。Tone key 只能結束目前音節，不把不完整聲母當成完整音節。
-
-## Editing and selection
-
-下表的字詞預期值使用自製 `fixtures/lexicon.tsv`。CNS11643 的資料相依預期值另由 `fixtures/cns11643.jsonl` 驗證；輸入規則不因詞庫而改變。
-
-| State / key | Result | Replay example and expected output |
-| --- | --- | --- |
-| Phonetic / `space` | 結束第一聲音節，不 commit | `1 8 space` → preedit `八`、commit null。 |
-| Phonetic / tone | 完成音節並查詞庫 | `s u 3 c l 3` → preedit `你好`、commit null。 |
-| Phonetic / `enter` | 回報 InvalidSyllable，保留輸入 | `1 enter` → preedit `ㄅ`、commit null。 |
-| Composing / `enter` or `space` | commit 整段文字並清空 | `1 8 space enter` → commit `八`、preedit 空。 |
-| Idle / `enter` or `space` | 透傳 | `space` → consumed false、commit null。 |
-| Composing / `down` | 開啟 Selecting | `1 8 space down` → selecting true。 |
-| Selecting / `1`…`9` | 選取目前頁的候選並鎖定 span，不 commit | `1 8 space down 2` → preedit `巴`、selecting false。 |
-| Selecting / `space` or `enter` | 選取 highlighted candidate，不 commit | `1 8 space down enter` → preedit `八`、commit null。 |
-| Selecting / `up` or `down` | 移動 highlight 並同步 page | `1 8 space down down enter` → preedit `巴`。 |
-| Selecting / `page_down` / `page_up` | 切換候選頁，邊界不循環 | `1 8 space down page_down 1` → preedit `豝`。 |
-| Selecting / `escape` | 關閉候選，保留 composition | `1 8 space down escape` → preedit `八`、selecting false。 |
-| Selecting / other key | consumed，保留候選模式 | 不將數字選字鍵再當 tone key。 |
-| Phonetic or Composing / `escape` | 清空整個 composition，不 commit | `1 8 escape` → preedit 空。 |
-| Phonetic / `backspace` | 刪除最後一個 phonetic slot | `1 8 backspace` → preedit `ㄅ`。 |
-| Composing / `backspace` | 刪除 cursor 前一個完整音節 | `s u 3 c l 3 backspace` → preedit `你`。 |
-| Composing / `delete` | 刪除 cursor 處完整音節 | `s u 3 c l 3 home delete` → preedit `好`。 |
-| Composing / `left` / `right` / `home` / `end` | 以音節為單位移動 cursor | `s u 3 c l 3 home right` → cursor 在兩音節之間。 |
-| Phonetic / cursor movement | consumed，不移動或丟棄未完成音節 | `1 left` → preedit `ㄅ`。 |
-| Unknown reading | 顯示原始 canonical Zhuyin，不刪除 | `q 8 space` → preedit `ㄆㄚ`，status UnknownReading。 |
-| Invalid syllable / tone | consumed，保留目前 raw buffer | `1 3` → preedit `ㄅ`，status InvalidSyllable。 |
-
-每頁最多 9 個候選，每份 snapshot 最多 256 個。Candidate index 是整份候選清單的 absolute index。搜尋 span 有固定上限。Cursor 位於 composition 結尾時，候選 anchor 為最後一個音節；否則使用 cursor 處的音節。選詞組前可先用 `home` 移至起點。
-
-選取事件必須帶目前 snapshot 的 `generation`。過期 generation 回報 StaleSelection，且不改變 composition。重新 reset 或重讀 snapshot 不得重送 commit。
-
-## Locks, limits and Unicode
-
-- 完成音節插入 cursor 處，之後重新計算未鎖定區段。
-- 編輯或明確改選觸及鎖定 span 時先解鎖；其餘鎖定 span 保留並依插入／刪除位置平移。
-  - 改選可使用不同長度的 span，不得因舊鎖定而隱藏有效候選。
-- 插入點正好在 span 邊界時，不解除相鄰 span 的鎖定。
-- 單次 composition 最多 64 個音節，包含目前未完成音節。
-  - 已有 64 個完整音節時拒絕新的 phonetic key，回報 LimitReached。
-  - 不自動 commit、不丟棄舊內容。
-- 音節位置與 UTF-8 byte offset 不可混用。
-- 多音節詞組的內部 cursor 位置映射到該 span 的文字起點，span 結尾映射到文字結尾。
-  - 不假設每個音節恰好對應一個 Unicode scalar。
-  - Native adapter 必須再轉換成平台要求的單位。
+| 原自研行為 | libchewing 契約 |
+| --- | --- |
+| 自製合法音節表與 slot 前綴拒絕 | 使用上游 parser／Standard；slot 可編輯，tone completion 由字庫查詢確認。 |
+| 未知音節成為可提交的 raw composition | 保留 pending spelling，回報 unknown，不讓上游靜默刪除；須改音或取消。 |
+| 非選字模式亦列出候選預覽 | 僅在明確選字模式提供候選。 |
+| 多種長度候選混列並自行排序 | 上游一次提供一個 selection point；Tab 改變詞組長度。 |
+| 自製 Viterbi／tie-break／lock 細節 | 使用上游 conversion 與選字鎖定；不保證舊候選順序。 |
+| 選字後移到 span end | 保留上游原 cursor，不啟用 auto-shift；需要移到結尾時明確使用 End。 |
+| 單音節可對應任意長度字串 | Runtime dictionary 接受上游一音節／scalar 模型；adapter 的任意文字 range 安全仍獨立驗證。 |
 
 ## Validation
 
-Core regression tests 與 `fixtures/*.jsonl` 驗證本規格。Parser tests 驗證 Dachen mapping、五聲、ㄦ、可獨立成音節的聲母、合法／非法音節與 slot 刪除。Adapter tests 另驗證 physical key mapping、native range、stale callback 與重複 reset。
+以手寫 regression expectations 驗證四組資料：baseline、CNS11643、quality、Unicode。每組先編譯成自己的 assets，wrong-profile replay 必須失敗。另驗證 probe／actual parity、held-key chords、context isolation、stale callbacks、limits、unknown input、resource integrity、FFI ownership 與一次性 commit。
 
-Host 的敏感欄位與停用輸入法限制優先於一般輸入流程，不得繞過。Native UI 行為仍須依平台 matrix 實測。
+輸入內容 logging、auto-learn、manual phrase learning 與 user dictionary persistence 均停用；測試只使用明確提供的 synthetic input。Host 的敏感欄位與停用輸入法限制優先，不得繞過。Core、platform build 與 installed native validation 分別提供證據；Fcitx index-only selection gap 仍依 validation register 保持 open。
